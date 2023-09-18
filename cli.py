@@ -1,60 +1,12 @@
-from datetime import datetime
-from enum import Enum
-from typing import Any
-from uuid import uuid1, UUID
-
 import click
-from dotenv import load_dotenv
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
 
+from models import Agent, Role, Run
 from postgres import postgres_engine, ChatLogs
 
-
-load_dotenv()
-
-class Role(Enum):
-    judge = "judge"
-    guesser = "guesser"
-
-class Run:
-    def __init__(self) -> None:
-        self.id = uuid1()
-        self.started_at = datetime.now()
-
-class Agent:
-    def __init__(self, run: Run, role: Role, llm: ChatOpenAI, session: Session, verbose = False) -> None:
-        self.run = run
-        self.role = role
-        self.llm = llm
-        self.memory = ConversationBufferMemory()
-        self.chain = ConversationChain(llm=llm, memory=self.memory, verbose=verbose)
-        self.session = session
-
-    def send_chat_message(self, message: str) -> str:
-        """
-        Wraps Chain.run() and logs results.
-
-        ConversationChain.memory needs to be a ConversationBufferMemory object
-        """
-        response = self.chain.run(input=message)
-
-        log = ChatLogs(
-            run_id=self.run.id,
-            run_started_at=self.run.started_at,
-            role=self.role.name,
-            llm=self.llm.to_json(),
-            response=response,
-            context=self.memory.buffer_as_str
-        )
-        self.session.add(log)
-        self.session.flush()
-        self.session.commit()
-
-        click.echo(f"{self.role.name}: {str(response).strip()}")
-        return str(response)
 
 game_prompt = """
 You are playing a game called 'Guess the card'.
@@ -97,6 +49,7 @@ def cli():
 def play():
     run = Run()
     click.echo(f"Run {run.id}")
+    # change to context manager?
     session = Session(postgres_engine)
     click.echo(f"game_prompt {game_prompt}")
 
@@ -127,7 +80,6 @@ def play():
         iterations += 1
         eof = "EOF" in judge_loop
         if (
-            # "EOF" in guesser_response or
             eof or
             iterations > 15
         ):
@@ -139,18 +91,18 @@ def play():
 @cli.command()
 @click.option('--run-id', '-r', help='run_id of game to be audited', type=click.STRING)
 def audit(run_id: click.STRING):
-    session = Session(postgres_engine)
-    results = session.query(ChatLogs).filter(ChatLogs.run_id == run_id).order_by(ChatLogs.created_at)
+    with Session(postgres_engine) as session:
+        results = session.query(ChatLogs).filter(ChatLogs.run_id == run_id).order_by(ChatLogs.created_at)
 
-    replayed_log = [f"{result.role}: {result.response}" for result in results]
+        replayed_log = [f"{result.role}: {result.response}" for result in results]
 
-    llm = ChatOpenAI(
-        max_tokens=256,
-        model="gpt-3.5-turbo-0613"
-    )
-    audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
-    response = audit_chain.run(input=audit_prompt.format(log=replayed_log))
-    click.echo(f"Audit response: {response}")
+        llm = ChatOpenAI(
+            max_tokens=256,
+            model="gpt-3.5-turbo-0613"
+        )
+        audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
+        response = audit_chain.run(input=audit_prompt.format(log=replayed_log))
+        click.echo(f"Audit response: {response}")
 
 if __name__ == '__main__':
     cli()

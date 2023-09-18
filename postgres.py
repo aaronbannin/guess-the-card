@@ -6,13 +6,15 @@ from sqlalchemy.engine import URL
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase
 
+from config import Config
+
 
 url = URL.create(
     drivername="postgresql",
-    username="",
-    host="",
+    username=Config.POSTGRES_USER,
+    host=Config.POSTGRES_HOST,
     port=5432,
-    database=""
+    database=Config.POSTGRES_DB
 )
 
 postgres_engine = create_engine(url)
