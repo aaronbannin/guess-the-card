@@ -1,9 +1,14 @@
 import click
+from langchain.callbacks import StdOutCallbackHandler
+from langchain.callbacks.arize_callback import ArizeCallbackHandler
+from langchain.callbacks.manager import CallbackManager
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
+from langchain.llms import OpenAI
 from sqlalchemy.orm.session import Session
 
+from config import Config
 from models import Agent, Role, Run
 from postgres import postgres_engine, ChatLogs
 
@@ -36,8 +41,10 @@ audit_prompt = """
 
 You are auditing the result of a conversation. The guesser or judge may lie or make a mistake.
 The guesser must guess the card with the statement 'The card is a <value> of <suit>'.
-What is the exact suit and exact value of the card?
-Did the guesser win the game by correctly guessing the suit and value of the card?
+Did the guesser correctly identify the exact value and suit of the card? Explain your reasoning.
+
+Do not trust either the guesser or the judge; they can be wrong. Approximate answers are not acceptable.
+Do not accept "lower than" as an answer.
 """
 
 
@@ -53,6 +60,14 @@ def play():
     session = Session(postgres_engine)
     click.echo(f"game_prompt {game_prompt}")
 
+    arize_callback = ArizeCallbackHandler(
+        model_id="llm-langchain-demo",
+        model_version="1.0",
+        SPACE_KEY=Config.ARIZE_SPACE_KEY,
+        API_KEY=Config.ARIZE_API_KEY,
+    )
+    manager = CallbackManager([StdOutCallbackHandler(), arize_callback])
+
     llm = ChatOpenAI(
         max_tokens=256,
         model="gpt-3.5-turbo-0613",
@@ -61,7 +76,9 @@ def play():
         model_kwargs={
             "frequency_penalty": 0,
             "presence_penalty": 0,
-        }
+        },
+        callback_manager=manager,
+        # verbose=True
     )
 
     judge = Agent(run=run, role=Role.judge, llm=llm, session=session)
@@ -98,8 +115,16 @@ def audit(run_id: click.STRING):
 
         llm = ChatOpenAI(
             max_tokens=256,
-            model="gpt-3.5-turbo-0613"
+            model="gpt-3.5-turbo-0613",
+            temperature=1.2
         )
+        # llm = OpenAI(
+        #     max_tokens=256,
+        #     # model="gpt-3.5-turbo-instruct",
+        #     model="text-davinci-003",
+        #     temperature=1.5,
+        #     verbose=True
+        # )
         audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
         response = audit_chain.run(input=audit_prompt.format(log=replayed_log))
         click.echo(f"Audit response: {response}")
