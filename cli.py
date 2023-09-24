@@ -1,11 +1,13 @@
+from typing import Any, Dict
+
 import click
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
+from langchain.schema import HumanMessage, SystemMessage
 from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
 
-from models import Agent, Role, Run
-from postgres import postgres_engine, ChatLogs
+from models import postgres_engine, Agent, ChatLogs, Deck, Role, Run
 
 
 game_prompt = """
@@ -22,14 +24,26 @@ If the hint is for the value, the judge will respond 'higher', 'lower', or 'corr
 If the hint is for the suit, the judge will respond 'left', 'right', or 'correct'.
 
 The guesser can guess the card with the statement 'The card is a <value> of <suit>'.
-If the guesser is incorrect, the current card is discarded and the judge draws a new card.
 The guesser must guess the value in the correct format to win.
 
-The judge will never lie.
-The judge will only respond to guesses and hints. The judge will respond with 'I did not understand, would you like to make a guess or a hint?'
-When the game ends, the judge will respond with "EOF"
 You will be the {role}.
 """
+
+initial_guesser_prompt = """
+Below are some data structures to help you deduce the card.
+Values: {values}
+Suits: {suits}
+
+I am the judge; ask for your first hint.
+""".format(values=",".join(Deck.values), suits=",".join(Deck.suits))
+
+initial_judge_prompt = game_prompt.format(role=Role.judge.value) + """
+You will never lie.
+You will only respond to guesses and hints.
+When the game ends, you will respond with "EOF"
+
+The card you picked from the deck is {card}
+""".format(card=Deck.draw_card())
 
 audit_prompt = """
 {log}
@@ -41,6 +55,40 @@ Did the guesser win the game by correctly guessing the suit and value of the car
 """
 
 
+class JudgeMemory(ConversationBufferMemory):
+    ai_prefix: str = "AI"
+    human_prefix: str = "Human"
+    system_prefix: str = "System"
+
+    def set_context(self, initial_prompt: str) -> None:
+        """Seed messages for chat"""
+        self.chat_memory.add_message(SystemMessage(content=initial_prompt))
+
+    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
+        """Override: Do not add new responses, only carry forward system message."""
+        pass
+
+
+class GuesserMemory(ConversationBufferMemory):
+    ai_prefix: str = "AI"
+    human_prefix: str = "Human"
+    system_prefix: str = "System"
+
+    def set_context(self, rules: str, initial_prompt: str) -> None:
+        """Seed messages for chat"""
+        self.chat_memory.add_message(SystemMessage(content=rules))
+        self.chat_memory.add_message(HumanMessage(content=initial_prompt))
+        # empty message because so we don't lose the rules
+        self.chat_memory.add_message(HumanMessage(content=""))
+
+    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
+        """Override: Do not add new responses, only carry forward system message."""
+        _, output_str = self._get_input_output(inputs, outputs)
+        # remove last message
+        self.chat_memory.messages.pop()
+        self.chat_memory.add_ai_message(output_str)
+
+
 @click.group()
 def cli():
     pass
@@ -50,43 +98,61 @@ def play():
     run = Run()
     click.echo(f"Run {run.id}")
     # change to context manager?
-    session = Session(postgres_engine)
-    click.echo(f"game_prompt {game_prompt}")
+    with Session(postgres_engine) as session:
+        click.echo(f"initial_judge_prompt {initial_judge_prompt}")
 
-    llm = ChatOpenAI(
-        max_tokens=256,
-        model="gpt-3.5-turbo-0613",
-        n=1,
-        temperature=1.0,
-        model_kwargs={
-            "frequency_penalty": 0,
-            "presence_penalty": 0,
-        }
-    )
+        llm = ChatOpenAI(
+            max_tokens=256,
+            model="gpt-3.5-turbo-0613",
+            n=1,
+            temperature=1.0,
+            model_kwargs={
+                "frequency_penalty": 0,
+                "presence_penalty": 0,
+            }
+        )
 
-    judge = Agent(run=run, role=Role.judge, llm=llm, session=session)
-    guessor = Agent(run=run, role=Role.guesser, llm=llm, session=session)
+        judge_memory = JudgeMemory()
+        judge_memory.set_context(initial_judge_prompt)
+        judge = Agent(
+            run=run,
+            role=Role.judge,
+            llm=llm,
+            session=session,
+            memory=judge_memory,
+            # verbose=True
+        )
+        # guessor_memory = GuesserMemory()
+        guessor_memory = ConversationBufferMemory()
+        # guessor_memory.set_context(game_prompt.format(role=Role.guesser.value), initial_guesser_prompt)
+        guessor = Agent(
+            run=run,
+            role=Role.guesser,
+            llm=llm,
+            session=session,
+            memory=guessor_memory,
+            # verbose=True
+        )
 
-    # prime the judge
-    judge.send_chat_message(game_prompt.format(role="judge") + "\nRespond with 'EOF' when the guesser has won the game.")
-    # prime the guesser; output will mutate in the loop below
-    guesser_response = guessor.send_chat_message(game_prompt.format(role="guessor") + "\nAsk for a hint from the judge.")
+        # prime the judge
+        judge.send_chat_message(initial_judge_prompt)
+        # prime the guesser; output will mutate in the loop below
+        guesser_response = guessor.send_chat_message(initial_guesser_prompt)
 
-    iterations = 0
-    while True:
-        judge_loop = judge.send_chat_message(guesser_response)
-        guesser_response = guessor.send_chat_message(judge_loop)
+        iterations = 0
+        while True:
+            judge_loop = judge.send_chat_message(guesser_response)
+            guesser_response = guessor.send_chat_message(judge_loop)
 
-        iterations += 1
-        eof = "EOF" in judge_loop
-        if (
-            eof or
-            iterations > 15
-        ):
-            click.echo(f"Ending condition met EOF {eof} iterations {iterations}")
-            break
+            iterations += 1
+            eof = "EOF" in judge_loop
+            if (
+                eof or
+                iterations > 15
+            ):
+                click.echo(f"Ending condition met EOF {eof} iterations {iterations}")
+                break
 
-    session.close()
 
 @cli.command()
 @click.option('--run-id', '-r', help='run_id of game to be audited', type=click.STRING)
@@ -94,15 +160,27 @@ def audit(run_id: click.STRING):
     with Session(postgres_engine) as session:
         results = session.query(ChatLogs).filter(ChatLogs.run_id == run_id).order_by(ChatLogs.created_at)
 
-        replayed_log = [f"{result.role}: {result.response}" for result in results]
+        replayed_log = [str(result) for result in results]
 
         llm = ChatOpenAI(
             max_tokens=256,
             model="gpt-3.5-turbo-0613"
+            # model="gpt-4"
         )
+
         audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
         response = audit_chain.run(input=audit_prompt.format(log=replayed_log))
         click.echo(f"Audit response: {response}")
+
+@cli.command()
+@click.option('--run-id', '-r', help='run_id of game to be audited', type=click.STRING)
+def replay(run_id: click.STRING):
+    with Session(postgres_engine) as session:
+        logs = session.query(ChatLogs).filter(ChatLogs.run_id == run_id).order_by(ChatLogs.created_at)
+
+        for log in logs:
+            click.echo(log)
+
 
 if __name__ == '__main__':
     cli()
