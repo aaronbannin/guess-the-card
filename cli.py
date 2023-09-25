@@ -1,13 +1,10 @@
-from typing import Any, Dict
-
 import click
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
-from langchain.schema import HumanMessage, SystemMessage
 from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
 
-from models import postgres_engine, Agent, ChatLogs, Deck, OpenAIModels, Role, Run
+import models
 
 
 game_prompt = """
@@ -35,15 +32,15 @@ Values: {values}
 Suits: {suits}
 
 I am the judge; ask for your first hint.
-""".format(values=",".join(Deck.values), suits=",".join(Deck.suits))
+""".format(values=",".join(models.Deck.values), suits=",".join(models.Deck.suits))
 
-initial_judge_prompt = game_prompt.format(role=Role.judge.value) + """
+initial_judge_prompt = game_prompt.format(role=models.Role.judge.value) + """
 You will never lie.
 You will only respond to guesses and hints.
 When the game ends, you will respond with "EOF"
 
 The card you picked from the deck is {card}
-""".format(card=Deck.draw_card())
+""".format(card=models.Deck.draw_card())
 
 audit_prompt = """
 {log}
@@ -53,40 +50,6 @@ The guesser must guess the card with the statement 'The card is a <value> of <su
 What is the exact suit and exact value of the card?
 Did the guesser win the game by correctly guessing the suit and value of the card?
 """
-
-
-class JudgeMemory(ConversationBufferMemory):
-    ai_prefix: str = "AI"
-    human_prefix: str = "Human"
-    system_prefix: str = "System"
-
-    def set_context(self, initial_prompt: str) -> None:
-        """Seed messages for chat"""
-        self.chat_memory.add_message(SystemMessage(content=initial_prompt))
-
-    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
-        """Override: Do not add new responses, only carry forward system message."""
-        pass
-
-
-class GuesserMemory(ConversationBufferMemory):
-    ai_prefix: str = "AI"
-    human_prefix: str = "Human"
-    system_prefix: str = "System"
-
-    def set_context(self, rules: str, initial_prompt: str) -> None:
-        """Seed messages for chat"""
-        self.chat_memory.add_message(SystemMessage(content=rules))
-        self.chat_memory.add_message(HumanMessage(content=initial_prompt))
-        # empty message because so we don't lose the rules
-        self.chat_memory.add_message(HumanMessage(content=""))
-
-    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
-        """Override: Do not add new responses, only carry forward system message."""
-        _, output_str = self._get_input_output(inputs, outputs)
-        # remove last message
-        self.chat_memory.messages.pop()
-        self.chat_memory.add_ai_message(output_str)
 
 
 @click.group()
@@ -103,15 +66,15 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
     This will have two agents, one guesser and one judge, play a game of Guess the Card
     """
 
-    run = Run()
+    run = models.Run()
     click.echo(f"Run {run.id}")
 
-    with Session(postgres_engine) as session:
+    with Session(models.postgres_engine) as session:
         click.echo(f"initial_judge_prompt {initial_judge_prompt}")
 
         llm = ChatOpenAI(
             max_tokens=256,
-            model=OpenAIModels.gpt3.value,
+            model=models.OpenAIModels.gpt3.value,
             n=1,
             temperature=1.0,
             model_kwargs={
@@ -120,11 +83,11 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
             }
         )
 
-        judge_memory = JudgeMemory()
+        judge_memory = models.JudgeMemory()
         judge_memory.set_context(initial_judge_prompt)
-        judge = Agent(
+        judge = models.Agent(
             run=run,
-            role=Role.judge,
+            role=models.Role.judge,
             llm=llm,
             session=session,
             memory=judge_memory,
@@ -132,9 +95,9 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
         )
 
         guessor_memory = ConversationBufferMemory()
-        guessor = Agent(
+        guessor = models.Agent(
             run=run,
-            role=Role.guesser,
+            role=models.Role.guesser,
             llm=llm,
             session=session,
             memory=guessor_memory,
@@ -165,14 +128,14 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
 @click.option('--run-id', '-r', help='run_id of game to be audited', type=click.STRING)
 def audit(run_id: click.STRING):
     """Send log to an LLM to review"""
-    with Session(postgres_engine) as session:
-        results = session.query(ChatLogs).filter(ChatLogs.run_id == run_id).order_by(ChatLogs.created_at)
+    with Session(models.postgres_engine) as session:
+        results = session.query(models.ChatLogs).filter(models.ChatLogs.run_id == run_id).order_by(models.ChatLogs.created_at)
 
         replayed_log = [str(result) for result in results]
 
         llm = ChatOpenAI(
             max_tokens=256,
-            model=OpenAIModels.gpt3.value
+            model=models.OpenAIModels.gpt3.value
         )
 
         audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
@@ -183,8 +146,8 @@ def audit(run_id: click.STRING):
 @click.option('--run-id', '-r', help='run_id of game to be replayed', type=click.STRING)
 def replay(run_id: click.STRING):
     """Print chat log"""
-    with Session(postgres_engine) as session:
-        logs = session.query(ChatLogs).filter(ChatLogs.run_id == run_id).order_by(ChatLogs.created_at)
+    with Session(models.postgres_engine) as session:
+        logs = session.query(models.ChatLogs).filter(models.ChatLogs.run_id == run_id).order_by(models.ChatLogs.created_at)
 
         for log in logs:
             click.echo(log)
