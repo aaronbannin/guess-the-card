@@ -63,9 +63,9 @@ ChatGPT's bias to be positive and helpful resulted in some interesting behavior.
 - Verify that your Python version matches the version set in `pyproject.toml`.
 - This tool requires a PostgreSQL database to manage data. On a Mac, I find [Postgres.app](https://postgresapp.com/) to be the easiest way to get up and running. You may need to add this line to your `~/.zshrc` file:
 
-```export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH"```
+    ```export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH"```
 
-[Homebrew](https://wiki.postgresql.org/wiki/Homebrew) is another effective way to install.
+    [Homebrew](https://wiki.postgresql.org/wiki/Homebrew) is another effective way to install.
 
 - Create an `.env` file by running `cp .env.example .env` and update the values. Refer to `config.py` for environment variables.
 - Install and set up [Poetry](https://python-poetry.org/docs/#installation).
