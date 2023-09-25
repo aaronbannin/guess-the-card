@@ -6,14 +6,13 @@ authors = ["Aaron Bannin <aaronbannin@Aarons-MacBook-Pro.local>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 click = "^8.1.7"
 python-dotenv = "^1.0.0"
 sqlalchemy = "^2.0.20"
 psycopg2 = "^2.9.7"
 langchain = "^0.0.293"
 openai = "^0.28.0"
-
 
 [build-system]
 requires = ["poetry-core"]
