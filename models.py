@@ -28,6 +28,11 @@ url = URL.create(
 
 postgres_engine = create_engine(url)
 
+# surely this already exists in the OpenAI library...
+class OpenAIModels(Enum):
+    gpt3 = "gpt-3.5-turbo-0613"
+    gpt4 = "gpt-4"
+
 class Role(Enum):
     judge = "judge"
     guesser = "guesser"

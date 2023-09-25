@@ -53,8 +53,21 @@ ChatGPT's bias to be positive and helpful resulted in some interesting behavior.
 # Next Steps:
 - Provide guesser with guessing strategies.
 - Priming guesser with methods of remembering learned information.
+- Fine-tune model to automate auditing and labeling.
 - Rephrase system prompt to encourage first-person responses.
 - Experiment with functions; might make it easier to parse responses.
 - Loosen response guidance and allow players to explore different ways of phrasing hints and guesses.
 - Test against other models.
 
+# Run Locally
+- Verify that your Python version matches the version set in `pyproject.toml`.
+- This tool requires a PostgreSQL database to manage data. On a Mac, I find [Postgres.app](https://postgresapp.com/) to be the easiest way to get up and running. You may need to add this line to your `~/.zshrc` file:
+
+```export PATH="/Applications/Postgres.app/Contents/Versions/latest/bin:$PATH"```
+
+[Homebrew](https://wiki.postgresql.org/wiki/Homebrew) is another effective way to install.
+
+- Create an `.env` file by running `cp .env.example .env` and update the values. Refer to `config.py` for environment variables.
+- Install and set up [Poetry](https://python-poetry.org/docs/#installation).
+- Run `poetry install`.
+- Run `poetry run python cli.py --help` to see availible commands.

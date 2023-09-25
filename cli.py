@@ -7,7 +7,7 @@ from langchain.schema import HumanMessage, SystemMessage
 from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
 
-from models import postgres_engine, Agent, ChatLogs, Deck, Role, Run
+from models import postgres_engine, Agent, ChatLogs, Deck, OpenAIModels, Role, Run
 
 
 game_prompt = """
@@ -94,16 +94,24 @@ def cli():
     pass
 
 @cli.command()
-def play():
+@click.option('--iterations', '-i', 'max_iterations', default=1, help='Max number of iterations to be played', type=click.INT)
+@click.option('--verbose', '-v', default=False, help='Verbose logging from Langchain', type=click.BOOL)
+def play(max_iterations: click.INT, verbose: click.BOOL):
+    """
+    Let's play a game!!!
+
+    This will have two agents, one guesser and one judge, play a game of Guess the Card
+    """
+
     run = Run()
     click.echo(f"Run {run.id}")
-    # change to context manager?
+
     with Session(postgres_engine) as session:
         click.echo(f"initial_judge_prompt {initial_judge_prompt}")
 
         llm = ChatOpenAI(
             max_tokens=256,
-            model="gpt-3.5-turbo-0613",
+            model=OpenAIModels.gpt3.value,
             n=1,
             temperature=1.0,
             model_kwargs={
@@ -120,18 +128,17 @@ def play():
             llm=llm,
             session=session,
             memory=judge_memory,
-            # verbose=True
+            verbose=verbose
         )
-        # guessor_memory = GuesserMemory()
+
         guessor_memory = ConversationBufferMemory()
-        # guessor_memory.set_context(game_prompt.format(role=Role.guesser.value), initial_guesser_prompt)
         guessor = Agent(
             run=run,
             role=Role.guesser,
             llm=llm,
             session=session,
             memory=guessor_memory,
-            # verbose=True
+            verbose=verbose
         )
 
         # prime the judge
@@ -139,24 +146,25 @@ def play():
         # prime the guesser; output will mutate in the loop below
         guesser_response = guessor.send_chat_message(initial_guesser_prompt)
 
-        iterations = 0
+        iterations_played = 0
         while True:
             judge_loop = judge.send_chat_message(guesser_response)
             guesser_response = guessor.send_chat_message(judge_loop)
 
-            iterations += 1
+            iterations_played += 1
             eof = "EOF" in judge_loop
             if (
                 eof or
-                iterations > 15
+                iterations_played >= max_iterations
             ):
-                click.echo(f"Ending condition met EOF {eof} iterations {iterations}")
+                click.echo(f"Ending condition met EOF {eof} iterations played {iterations_played}")
                 break
 
 
 @cli.command()
 @click.option('--run-id', '-r', help='run_id of game to be audited', type=click.STRING)
 def audit(run_id: click.STRING):
+    """Send log to an LLM to review"""
     with Session(postgres_engine) as session:
         results = session.query(ChatLogs).filter(ChatLogs.run_id == run_id).order_by(ChatLogs.created_at)
 
@@ -164,8 +172,7 @@ def audit(run_id: click.STRING):
 
         llm = ChatOpenAI(
             max_tokens=256,
-            model="gpt-3.5-turbo-0613"
-            # model="gpt-4"
+            model=OpenAIModels.gpt3.value
         )
 
         audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
@@ -173,8 +180,9 @@ def audit(run_id: click.STRING):
         click.echo(f"Audit response: {response}")
 
 @cli.command()
-@click.option('--run-id', '-r', help='run_id of game to be audited', type=click.STRING)
+@click.option('--run-id', '-r', help='run_id of game to be replayed', type=click.STRING)
 def replay(run_id: click.STRING):
+    """Print chat log"""
     with Session(postgres_engine) as session:
         logs = session.query(ChatLogs).filter(ChatLogs.run_id == run_id).order_by(ChatLogs.created_at)
 

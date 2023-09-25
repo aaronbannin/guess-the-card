@@ -468,6 +468,7 @@ files = [
 
 [package.dependencies]
 aiohttp = ">=3.8.3,<4.0.0"
+async-timeout = {version = ">=4.0.0,<5.0.0", markers = "python_version < \"3.11\""}
 dataclasses-json = ">=0.5.7,<0.6.0"
 langsmith = ">=0.0.38,<0.1.0"
 numexpr = ">=2.8.4,<3.0.0"
@@ -1229,5 +1230,5 @@ multidict = ">=4.0"
 
 [metadata]
 lock-version = "2.0"
-python-versions = "^3.11"
-content-hash = "822c8ab9d8cc87bbe87da05c241e09dcc5429ad756f3a8f7c278c323f051a206"
+python-versions = "^3.10"
+content-hash = "24c5807b95c54993be33ad984d61c85d197e6c082cc4c524dd59f11f1e8e654a"
