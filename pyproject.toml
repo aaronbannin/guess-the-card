@@ -15,10 +15,12 @@ langchain = "^0.0.293"
 openai = "^0.28.0"
 flake8 = "^6.1.0"
 black = "^23.9.1"
+flake8-black = "^0.3.6"
 
 [tool.black]
-line-length = 90
+line-length = 88
 include = '\.pyi?$'
+experimental-string-processing = true
 exclude = '''
 /(
     \.git

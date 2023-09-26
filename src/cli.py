@@ -35,15 +35,24 @@ Values: {values}
 Suits: {suits}
 
 I am the judge; ask for your first hint.
-""".format(game_prompt=game_prompt, values=",".join(models.Deck.values), suits=",".join(models.Deck.suits))
+""".format(
+    game_prompt=game_prompt,
+    values=",".join(models.Deck.values),
+    suits=",".join(models.Deck.suits),
+)
 
-initial_judge_prompt = game_prompt.format(role=models.Role.judge.value) + """
+initial_judge_prompt = (
+    game_prompt.format(role=models.Role.judge.value)
+    + """
 You will never lie.
 You will only respond to guesses and hints.
 When the game ends, you will respond with "EOF"
 
 The card you picked from the deck is {card}
-""".format(card=models.Deck.draw_card())
+""".format(
+        card=models.Deck.draw_card()
+    )
+)
 
 audit_prompt = """
 {game_prompt}
@@ -60,9 +69,23 @@ Did the guesser win the game by correctly guessing the suit and value of the car
 def cli():
     pass
 
+
 @cli.command()
-@click.option('--iterations', '-i', 'max_iterations', default=15, help='Max number of iterations to be played', type=click.INT)
-@click.option('--verbose', '-v', default=False, help='Verbose logging from Langchain', type=click.BOOL)
+@click.option(
+    "--iterations",
+    "-i",
+    "max_iterations",
+    default=15,
+    help="Max number of iterations to be played",
+    type=click.INT,
+)
+@click.option(
+    "--verbose",
+    "-v",
+    default=False,
+    help="Verbose logging from Langchain",
+    type=click.BOOL,
+)
 def play(max_iterations: click.INT, verbose: click.BOOL):
     """
     Let's play a game!!!
@@ -84,7 +107,7 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
             model_kwargs={
                 "frequency_penalty": 0,
                 "presence_penalty": 0,
-            }
+            },
         )
 
         judge_memory = models.JudgeMemory()
@@ -95,7 +118,7 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
             llm=llm,
             session=session,
             memory=judge_memory,
-            verbose=verbose
+            verbose=verbose,
         )
 
         guessor_memory = ConversationBufferMemory()
@@ -105,7 +128,7 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
             llm=llm,
             session=session,
             memory=guessor_memory,
-            verbose=verbose
+            verbose=verbose,
         )
 
         # prime the judge
@@ -120,42 +143,52 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
 
             iterations_played += 1
             eof = "EOF" in judge_loop
-            if (
-                eof or
-                iterations_played >= max_iterations
-            ):
-                click.echo(f"Ending condition met EOF {eof} iterations played {iterations_played}")
+            if eof or iterations_played >= max_iterations:
+                click.echo(
+                    f"Ending condition met EOF {eof} iterations played"
+                    f" {iterations_played}"
+                )
                 break
 
 
 @cli.command()
-@click.option('--run-id', '-r', help='run_id of game to be audited', type=click.STRING)
+@click.option("--run-id", "-r", help="run_id of game to be audited", type=click.STRING)
 def audit(run_id: click.STRING):
     """Send log to an LLM to review"""
     with Session(models.postgres_engine) as session:
-        results = session.query(models.ChatLogs).filter(models.ChatLogs.run_id == run_id).order_by(models.ChatLogs.created_at)
+        results = (
+            session.query(models.ChatLogs)
+            .filter(models.ChatLogs.run_id == run_id)
+            .order_by(models.ChatLogs.created_at)
+        )
 
         replayed_log = [str(result) for result in results]
 
-        llm = ChatOpenAI(
-            max_tokens=256,
-            model=models.OpenAIModels.gpt3.value
-        )
+        llm = ChatOpenAI(max_tokens=256, model=models.OpenAIModels.gpt3.value)
 
         audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
-        response = audit_chain.run(input=audit_prompt.format(log=replayed_log, game_prompt=initial_judge_prompt))
+        response = audit_chain.run(
+            input=audit_prompt.format(
+                log=replayed_log, game_prompt=initial_judge_prompt
+            )
+        )
         click.echo(f"Audit response: {response}")
 
+
 @cli.command()
-@click.option('--run-id', '-r', help='run_id of game to be replayed', type=click.STRING)
+@click.option("--run-id", "-r", help="run_id of game to be replayed", type=click.STRING)
 def replay(run_id: click.STRING):
     """Print chat log"""
     with Session(models.postgres_engine) as session:
-        logs = session.query(models.ChatLogs).filter(models.ChatLogs.run_id == run_id).order_by(models.ChatLogs.created_at)
+        logs = (
+            session.query(models.ChatLogs)
+            .filter(models.ChatLogs.run_id == run_id)
+            .order_by(models.ChatLogs.created_at)
+        )
 
         for log in logs:
             click.echo(log)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
