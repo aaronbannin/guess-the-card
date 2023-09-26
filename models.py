@@ -40,7 +40,7 @@ class Role(Enum):
     guesser = "guesser"
 
     @DynamicClassAttribute
-    def pretty(self, suffix: str = ":"):
+    def pretty(self, suffix: str = " :"):
         target_length = max([len(k) for k in self.__class__.__members__.keys()])
         suffix_with_padding = " " * (target_length - len(self._name_)) + suffix
         return self._name_ + suffix_with_padding
@@ -52,7 +52,7 @@ class Run:
         self.started_at = datetime.now()
 
 class Deck:
-    values = [str(i) for i in range(1, 11)] + ["jack", "queen", "king", "ace"]
+    values = [str(i) for i in range(2, 11)] + ["jack", "queen", "king", "ace"]
     suits = ["diamonds", "hearts", "clubs", "spades"]
 
     @classmethod

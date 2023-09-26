@@ -8,12 +8,12 @@ import models
 
 
 game_prompt = """
+# Rules
 You are playing a game called 'Guess the card'.
 There are two players: the guesser and the judge.
 
 We start with a standard poker deck of 52 cards where the lowest value is 2 and the highest value is A.
 The suits, ordered left to right, are: diamonds, hearts, clubs, spades. Thus, clubs is to the right of both diamonds and hearts.
-The judge will randomly pick a card from the deck.
 
 The guesser will ask for hints from the judge until they are ready to guess the card.
 The guesser can ask for a hint in the form of 'Is the value of the card <value>?' or 'Is the suit of the card <suit>?'
@@ -27,12 +27,15 @@ You will be the {role}.
 """
 
 initial_guesser_prompt = """
+{game_prompt}
+
+# Hints
 Below are some data structures to help you deduce the card.
 Values: {values}
 Suits: {suits}
 
 I am the judge; ask for your first hint.
-""".format(values=",".join(models.Deck.values), suits=",".join(models.Deck.suits))
+""".format(game_prompt=game_prompt, values=",".join(models.Deck.values), suits=",".join(models.Deck.suits))
 
 initial_judge_prompt = game_prompt.format(role=models.Role.judge.value) + """
 You will never lie.
@@ -43,6 +46,7 @@ The card you picked from the deck is {card}
 """.format(card=models.Deck.draw_card())
 
 audit_prompt = """
+{game_prompt}
 {log}
 
 You are auditing the result of a conversation. The guesser or judge may lie or make a mistake.
@@ -57,7 +61,7 @@ def cli():
     pass
 
 @cli.command()
-@click.option('--iterations', '-i', 'max_iterations', default=1, help='Max number of iterations to be played', type=click.INT)
+@click.option('--iterations', '-i', 'max_iterations', default=15, help='Max number of iterations to be played', type=click.INT)
 @click.option('--verbose', '-v', default=False, help='Verbose logging from Langchain', type=click.BOOL)
 def play(max_iterations: click.INT, verbose: click.BOOL):
     """
@@ -139,7 +143,7 @@ def audit(run_id: click.STRING):
         )
 
         audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
-        response = audit_chain.run(input=audit_prompt.format(log=replayed_log))
+        response = audit_chain.run(input=audit_prompt.format(log=replayed_log, game_prompt=initial_judge_prompt))
         click.echo(f"Audit response: {response}")
 
 @cli.command()
