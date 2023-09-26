@@ -1,17 +1,17 @@
 # Evaluating ChatGPT's Ability to Reason
-Does ChatGPT have the ability to reason about novel problems, or is it limited to simply generating pre-learned text? There are some really facisnating examples of assessing ChatGPT's reasoning capabilities, often focused on mathematics. These assessments focus on existing concepts which are most likely within the training set. Testing GPT against a novel problem will assess it's ability to learn and allows us to measure it's ability to reason.
+Can ChatGPT reason about novel problems or is it limited to generating pre-learned text? Assessing ChatGPT's reasoning capabilities has been a topic of interest, particularly in the context of mathematics. Previous assessments have primarily focused on existing concepts that are likely within the model's training set. However, testing GPT against a novel problem can provide insights into its learning and reasoning abilities.
 
 # Let's Play a Game
-To assess the reasoning capability of GPT, I have two agents play a game with each other. The initial prompt outlines the rules for each agent. Summarized, it's a two player game where the guesser must deduce the card that is held by the judge. There are a few important design elements of this game:
-- **Turn based**: Players take actions in sequence. This allows for asyncronous play and is condusive to scripting.
-- **Asymmetric information**: The judge knows that value of the card, while the guesser does not.
-- **Winnable**: It is possible, and arguable rather easy, for the guesser to win every round.
+To evaluate GPT's reasoning capability, I designed a two-player game where one player acts as the guesser and the other as the judge. The game revolves around the guesser deducing the card held by the judge based on a set of rules. Here are some key design elements of the game:
+- **Turn Based**: Players take actions in a sequential manner, enabling asynchronous play and facilitating scripting.
+- **Asymmetric Information**: The judge possesses knowledge of the card's value, while the guesser remains unaware.
+- **Winnable**: The game is designed such that the guesser can potentially win every round.
 
-A player is defined as an instance of a LangChain Chain. Both players are primed with a prompt explaining the rules and assigning their role. Each player has an associated Memory, when combined with the most recent message form the prompt that is submitted on each turn.
+Each player is represented by an instance of [LangChain Chain](https://python.langchain.com/docs/modules/chains/). Both players are primed with a prompt that explains the game rules and assigns their respective roles. Langchain also handles memory management for each agent through its [memory](https://python.langchain.com/docs/modules/memory/) module, which populates the context window during interactions.
 
-It is important to note that ChatGPT is probablisitc, not deterministic. The same prompt will generate different results, and each response impacts future responses. This randomness is controlled primarily by the judge, whose instructions minimizes the scope of possible responses.
+ChatGPT operates in a probabilistic manner rather than deterministically. Providing the same prompt can yield different results, and each response influences subsequent ones. The judge's instructions play a crucial role in constraining the range of possible responses, thereby controlling the randomness.
 
-ChatGPT's bias to be positive and helpful resulted in some interesting behavior. GPT's toxic behavior has received a great deal of attention, and I believe that OpenAI has biased towards positivity so strongly that some interactions are clearly not human. Specific examples are provided below.
+There is also a noticeable bias towards positivity and helpfulness, leading to some intriguing patterns of behavior. Given the extensive attention GPT's problematic behavior has garnered, it's my belief that OpenAI has overcompensated with a strong bias towards positivity. As a result, some interactions with the model seem distinctly non-human. Detailed examples are elaborated upon below.
 
 
 # Observations
@@ -40,19 +40,19 @@ ChatGPT's bias to be positive and helpful resulted in some interesting behavior.
     guesser: Yes, the value of the card is higher than 4.
     ```
 
-- **Ending the game**: ChatGPT will always respond to a prompt. For this game, a simple `while` loop is used to engage each player; this means that the conversation will continue ad infinitum. Ideally, the game would conclude when the win condition is met. The judge is instructed to responsd with `EOF` when the game is complete, similar it concept to the `<|endoftext|>`. In practice, most conversations were terminated by capping the number of rounds played. This is because the guesser typically failed to win the game, and occassionally the judge simply forgot to use `EOF` in their response.
+- **Ending the game**: ChatGPT will always respond to a prompt. For this game, a simple `while` loop is used to engage each player; this means that the conversation will continue ad infinitum. Ideally, the game would conclude when the win condition is met. The judge is instructed to respond with `EOF` when the game is complete, similar in concept to the `<|endoftext|>` token used by GPT to terminate it's output. In practice, most conversations were terminated by capping the number of rounds played. This is because the guesser typically failed to win the game, and occassionally the judge simply forgot to use `EOF` in their response.
 
 
-- **Memory**: The biggest boost in judge performance came from customizing LangChain's memory manager. The `ConversationBufferMemory` keeps a log of the agent's conversation and submits the log to the LLM on each prompt. In the game, the judge is stateless; it does not need to remember any actions taken by the guesser. To respond, the judge just needs the rules for the game and the most recent prompt from the guesser. However, the guesser does need conversation history, as it needs to remember all hints and guesses taken within the game to stratagize it's next guess.
+- **Memory**: The biggest boost in judge performance came from customizing LangChain's memory manager. The `ConversationBufferMemory` keeps a log of the agent's conversation and submits the log to the LLM on each prompt. In the game, the judge is stateless; it does not need to remember any actions taken by the guesser. To respond, the judge just needs the rules for the game and the most recent prompt from the guesser. However, the guesser does need conversation history, as it needs to remember all hints and guesses taken within the game to strategize it's next guess.
 
-    The initial implementation of memory kept a full log of the conversation for each player. The players generally followed the concept of the rules of the game; the concept of responses were limited to hints, guesses, and verifying the card. However, the players took liberties in how their responses were phrased. The judge's behavior became much more reliable when the prompt only includes the game's rules and the guesser's most recent response. Notably, the judge's responses kept in line with the game rules. This suggests information entropy within the context window.
+    The initial implementation of memory kept a full log of the conversation for each player. The players generally followed the concept of the rules of the game; the concept of responses were limited to hints, guesses, and verifying the card. However, the players took liberties in how their responses were phrased. The judge's behavior became much more reliable when the prompt only includes the game's rules and the guesser's most recent response. Notably, the judge's responses kept in line with the game rules. This suggests information entropy within the context window; agents are able to maintain their path of reasoning but may forget detailed instructions.
 
-- **Auditing**: Reviewing and labeling conversations is very time consuming; automating labeling would allow for quickly measuring prompt changes. Overall, GPT auditing chat transcripts was okay and tended toward false positives. I tried to structure a prompt that would review a conversation and identify if the guesser won the game. The auditing prompt was heavily influenced by the guesser's response; if the guesser declared victory, the audit would agree. GPT lacks precision when acting as the guesser and the judge; this lack of precision also limits it's ability to accurately review chat transcripts.
+- **Auditing**: Manually reviewing and labeling conversations is a labor-intensive process. To expedite this, I attempted to automate the labeling to quickly gauge modifications in prompts. I designed a prompt aimed at evaluating a conversation to determine the guesser's victory in the game. Although the prompt effectively summarizes the game's progress, it's prone to producing false positives. GPT's evaluations are heavily swayed by the guesser's feedback. For instance, if the guesser claims a win, GPT's audit often concurs. Such imprecision in GPT's roles as both guesser and judge impairs its capability to accurately assess chat transcripts.
 
 
 # Next Steps:
 - Provide guesser with guessing strategies.
-- Priming guesser with methods of remembering learned information.
+- Prime guesser with techniques of remembering learned information.
 - Fine-tune model to automate auditing and labeling.
 - Rephrase system prompt to encourage first-person responses.
 - Experiment with functions; might make it easier to parse responses.
