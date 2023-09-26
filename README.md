@@ -1,17 +1,17 @@
 # Evaluating ChatGPT's Ability to Reason
-Does ChatGPT have the ability to reason about novel problems, or is it limited to simply generating pre-learned text? There are some really fascinating examples of assessing ChatGPT's reasoning capabilities, often focused on mathematics. These assessments focus on existing concepts which are most likely within the training set. Testing GPT against a novel problem will assess its ability to learn and allows us to measure its ability to reason.
+Can ChatGPT reason about novel problems or is it limited to generating pre-learned text? Assessing ChatGPT's reasoning capabilities has been a topic of interest, particularly in the context of mathematics. Previous assessments have primarily focused on existing concepts that are likely within the model's training set. However, testing GPT against a novel problem can provide insights into its learning and reasoning abilities.
 
 # Let's Play a Game
-To assess the reasoning capability of GPT, I have two agents play a game with each other. The initial prompt outlines the rules for each agent. Summarized, it's a two player game where the guesser must deduce the card that is held by the judge. There are a few important design elements of this game:
-- **Turn Based**: Players take actions in sequence. This allows for asynchronous play and is conducive to scripting.
-- **Asymmetric Information**: The judge knows that value of the card, while the guesser does not.
-- **Winnable**: It is possible, and arguable rather easy, for the guesser to win every round.
+To evaluate GPT's reasoning capability, I designed a two-player game where one player acts as the guesser and the other as the judge. The game revolves around the guesser deducing the card held by the judge based on a set of rules. Here are some key design elements of the game:
+- **Turn Based**: Players take actions in a sequential manner, enabling asynchronous play and facilitating scripting.
+- **Asymmetric Information**: The judge possesses knowledge of the card's value, while the guesser remains unaware.
+- **Winnable**: The game is designed such that the guesser can potentially win every round.
 
-A player is defined as an instance of a [LangChain Chain](https://python.langchain.com/docs/modules/chains/). Both players are primed with a prompt explaining the rules and assigning their role. Langchain also manages each agent's [memory](https://python.langchain.com/docs/modules/memory/), which is used to populate the context window on every interaction.
+Each player is represented by an instance of [LangChain Chain](https://python.langchain.com/docs/modules/chains/). Both players are primed with a prompt that explains the game rules and assigns their respective roles. Langchain also handles memory management for each agent through its [memory](https://python.langchain.com/docs/modules/memory/) module, which populates the context window during interactions.
 
-It is important to note that ChatGPT is probablisitc, not deterministic. The same prompt will generate different results, and each response impacts future responses. This randomness is controlled primarily by the judge, whose instructions minimizes the scope of possible responses.
+ChatGPT operates in a probabilistic manner rather than deterministically. Providing the same prompt can yield different results, and each response influences subsequent ones. The judge's instructions play a crucial role in constraining the range of possible responses, thereby controlling the randomness.
 
-ChatGPT exhibits a noticeable bias towards positivity and helpfulness, leading to some intriguing patterns of behavior. Given the extensive attention GPT's problematic behavior has garnered, it's my belief that OpenAI has overcompensated with a strong bias towards positivity. As a result, some interactions with the model seem distinctly non-human. Detailed examples are elaborated upon below.
+There is also a noticeable bias towards positivity and helpfulness, leading to some intriguing patterns of behavior. Given the extensive attention GPT's problematic behavior has garnered, it's my belief that OpenAI has overcompensated with a strong bias towards positivity. As a result, some interactions with the model seem distinctly non-human. Detailed examples are elaborated upon below.
 
 
 # Observations
