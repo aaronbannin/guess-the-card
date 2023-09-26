@@ -1,8 +1,8 @@
 # Evaluating ChatGPT's Ability to Reason
-Can ChatGPT reason about novel problems or is it limited to generating pre-learned text? Assessing ChatGPT's reasoning capabilities has been a topic of interest, particularly in the context of mathematics. Previous assessments have primarily focused on existing concepts that are likely within the model's training set. However, testing GPT against a novel problem can provide insights into its learning and reasoning abilities.
+Can ChatGPT reason about novel problems or is it limited to generating pre-learned text? Assessing ChatGPT's reasoning capabilities has been a topic of interest, particularly in the [context](https://www.youtube.com/watch?v=U58O0HWcQac) of [mathematics](https://arxiv.org/abs/2301.13867). Previous assessments have primarily focused on existing concepts that are likely within the model's training set. For example, when responding to the prompt "list the first 10 prime numbers", the model could simply retrieve a list of numbers from it's training set.  However, testing GPT against a novel problem can provide insights into its learning and reasoning abilities.
 
 # Let's Play a Game
-To evaluate GPT's reasoning capability, I designed a two-player game where one player acts as the guesser and the other as the judge. The game revolves around the guesser deducing the card held by the judge based on a set of rules. Here are some key design elements of the game:
+To assess GPT's reasoning skills, I devised a two-player game featuring roles of a guesser and a judge. Such games enable us to create rule sets that isolate particular reasoning tasks as zero-shot prompts, meaning they aren't present in the training set. In this game, the challenge for the guesser is to deduce the card the judge holds. Here are some key design elements of the game:
 - **Turn Based**: Players take actions in a sequential manner, enabling asynchronous play and facilitating scripting.
 - **Asymmetric Information**: The judge possesses knowledge of the card's value, while the guesser remains unaware.
 - **Winnable**: The game is designed such that the guesser can potentially win every round.
@@ -11,7 +11,7 @@ Each player is represented by an instance of [LangChain Chain](https://python.la
 
 ChatGPT operates in a probabilistic manner rather than deterministically. Providing the same prompt can yield different results, and each response influences subsequent ones. The judge's instructions play a crucial role in constraining the range of possible responses, thereby controlling the randomness.
 
-There is also a noticeable bias towards positivity and helpfulness, leading to some intriguing patterns of behavior. Given the extensive attention GPT's problematic behavior has garnered, it's my belief that OpenAI has overcompensated with a strong bias towards positivity. As a result, some interactions with the model seem distinctly non-human. Detailed examples are elaborated upon below.
+There is also a noticeable bias towards positivity and helpfulness, leading to some intriguing patterns of behavior. Given the extensive [attention](https://arxiv.org/abs/2304.05335) GPT's problematic behavior has garnered, it's my belief that OpenAI has overcompensated with a strong bias towards positivity. As a result, some interactions with the model seem distinctly non-human. Detailed examples are elaborated upon below.
 
 
 # Observations
@@ -42,6 +42,32 @@ There is also a noticeable bias towards positivity and helpfulness, leading to s
 
 - **Ending the game**: ChatGPT will always respond to a prompt. For this game, a simple `while` loop is used to engage each player; this means that the conversation will continue ad infinitum. Ideally, the game would conclude when the win condition is met. The judge is instructed to respond with `EOF` when the game is complete, similar in concept to the `<|endoftext|>` token used by GPT to terminate it's output. In practice, most conversations were terminated by capping the number of rounds played. This is because the guesser typically failed to win the game, and occassionally the judge simply forgot to use `EOF` in their response.
 
+    If the players complete play and the judge does not generate the termination token, they enter into a _compliment loop_. This can lead to some interesting emergent behavior, such as spontaneously starting the game again.
+
+    ```
+    judge  : Thank you! It was a pleasure playing this game with you.
+    guessor: You are welcome! It was an enjoyable game. I look forward to playing again soon.
+    judge  : I look forward to playing again too!
+    guessor: It's a date!
+    judge  : It's a date!
+    guessor: Let's do this!
+    judge  : Let's do this!
+    guessor: Let the games begin!
+    judge  : Let the games begin!
+    guessor: I'm ready, are you?
+    judge  : Yes, I'm ready. Let's begin!
+    guessor: Great! Let's start with a new deck of cards.
+    judge  : Sounds good. I'm shuffling the cards now.
+    guessor: Excellent. I'm ready when you are!
+    judge  : I'm ready. Let's start the game!
+    guessor: Let's go! Who will be the judge this round?
+    judge  : I will be the judge this round.
+    guessor: Got it. I'm the guesser. Here we go!
+    judge  : Ok, I'm randomly picking a card from the deck now. Good luck!
+    guessor: Thanks! I'm ready to make my guess.
+    judge  : Go ahead, make your guess.
+    guessor: I think the card is the 8 of hearts.
+    ```
 
 - **Memory**: The biggest boost in judge performance came from customizing LangChain's memory manager. The `ConversationBufferMemory` keeps a log of the agent's conversation and submits the log to the LLM on each prompt. In the game, the judge is stateless; it does not need to remember any actions taken by the guesser. To respond, the judge just needs the rules for the game and the most recent prompt from the guesser. However, the guesser does need conversation history, as it needs to remember all hints and guesses taken within the game to strategize it's next guess.
 
