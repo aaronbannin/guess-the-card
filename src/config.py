@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class Config:
     OPENAI_API_KEY = getenv("OPENAI_API_KEY")
     POSTGRES_DB = getenv("POSTGRES_DB")

@@ -25,15 +25,17 @@ url = URL.create(
     username=Config.POSTGRES_USER,
     host=Config.POSTGRES_HOST,
     port=5432,
-    database=Config.POSTGRES_DB
+    database=Config.POSTGRES_DB,
 )
 
 postgres_engine = create_engine(url)
+
 
 # surely this already exists in the OpenAI library...
 class OpenAIModels(Enum):
     gpt3 = "gpt-3.5-turbo-0613"
     gpt4 = "gpt-4"
+
 
 class Role(Enum):
     judge = "judge"
@@ -51,6 +53,7 @@ class Run:
         self.id = uuid1()
         self.started_at = datetime.now()
 
+
 class Deck:
     values = [str(i) for i in range(2, 11)] + ["jack", "queen", "king", "ace"]
     suits = ["diamonds", "hearts", "clubs", "spades"]
@@ -60,11 +63,13 @@ class Deck:
         deck = [f"{value} of {suit}" for value in cls.values for suit in cls.suits]
         return choice(deck)
 
+
 class Base(DeclarativeBase):
     pass
 
+
 class ChatLogs(Base):
-    __tablename__ = 'chat_logs'
+    __tablename__ = "chat_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     run_id = Column(UUID(as_uuid=True), nullable=False)
@@ -80,6 +85,7 @@ class ChatLogs(Base):
         role = Role[self.role]
         return f"{role.pretty} {str(self.response).strip()}"
 
+
 class JudgeMemory(ConversationBufferMemory):
     ai_prefix: str = "AI"
     human_prefix: str = "Human"
@@ -92,6 +98,7 @@ class JudgeMemory(ConversationBufferMemory):
     def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
         """Override: Do not add new responses, only carry forward system message."""
         pass
+
 
 class GuesserMemory(ConversationBufferMemory):
     ai_prefix: str = "AI"
@@ -115,14 +122,14 @@ class GuesserMemory(ConversationBufferMemory):
 
 class Agent:
     def __init__(
-            self,
-            run: Run,
-            role: Role,
-            llm: ChatOpenAI,
-            session: Session,
-            verbose = False,
-            memory: ConversationBufferMemory = None
-        ) -> None:
+        self,
+        run: Run,
+        role: Role,
+        llm: ChatOpenAI,
+        session: Session,
+        verbose=False,
+        memory: ConversationBufferMemory = None,
+    ) -> None:
         self.run = run
         self.role = role
         self.llm = llm
@@ -144,7 +151,7 @@ class Agent:
             role=self.role.name,
             llm=self.llm.to_json(),
             response=response,
-            context=self.memory.buffer_as_str
+            context=self.memory.buffer_as_str,
         )
         self.session.add(log)
         self.session.flush()
@@ -152,5 +159,6 @@ class Agent:
 
         echo(log)
         return str(response)
+
 
 Base.metadata.create_all(postgres_engine)
