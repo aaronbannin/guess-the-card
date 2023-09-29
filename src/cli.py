@@ -1,5 +1,6 @@
+from time import sleep
+
 import click
-from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
@@ -7,6 +8,7 @@ from sqlalchemy.orm.session import Session
 import models
 
 
+card = models.Deck.draw_card()
 game_prompt = """
 # Rules
 You are playing a game called 'Guess the card'.
@@ -46,23 +48,102 @@ initial_judge_prompt = (
     + """
 You will never lie.
 You will only respond to guesses and hints.
-When the game ends, you will respond with "EOF"
+When the guesser identifies the card, you will respond with "EOF"
 
 The card you picked from the deck is {card}
 """.format(
-        card=models.Deck.draw_card()
+        card=card
     )
 )
 
-audit_prompt = """
-{game_prompt}
-{log}
+def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
+    run = models.Run()
+    click.echo(f"Run {run.id}")
 
-You are auditing the result of a conversation. The guesser or judge may lie or make a mistake.
-The guesser must guess the card with the statement 'The card is a <value> of <suit>'.
-What is the exact suit and exact value of the card?
-Did the guesser win the game by correctly guessing the suit and value of the card?
-"""
+    with Session(models.postgres_engine) as session:
+        click.echo(f"initial_judge_prompt {initial_judge_prompt}")
+
+        llm = ChatOpenAI(
+            max_tokens=256,
+            model=models.OpenAIModels.gpt3_5_turbo.value,
+            n=1,
+            temperature=1.0,
+            model_kwargs={
+                "frequency_penalty": 0,
+                "presence_penalty": 0,
+            },
+        )
+
+        judge_memory = models.JudgeMemory()
+        judge_memory.set_context(initial_judge_prompt)
+        judge = models.Agent(
+            run=run,
+            role=models.Role.judge,
+            card=card,
+            llm=llm,
+            session=session,
+            memory=judge_memory,
+            verbose=verbose,
+        )
+
+        guessor_memory = ConversationBufferMemory()
+        guessor = models.Agent(
+            run=run,
+            role=models.Role.guesser,
+            card=card,
+            llm=llm,
+            session=session,
+            memory=guessor_memory,
+            verbose=verbose,
+        )
+
+        iterations_played = 0
+        try:
+            # prime the judge
+            judge.send_chat_message(initial_judge_prompt)
+            # prime the guesser; output will mutate in the loop below
+            guesser_response = guessor.send_chat_message(initial_guesser_prompt)
+
+
+            while True:
+                judge_loop = judge.send_chat_message(guesser_response)
+                guesser_response = guessor.send_chat_message(judge_loop)
+
+                iterations_played += 1
+                eof = "EOF" in judge_loop
+                verb = "did" if eof else "did not"
+
+                if eof or iterations_played >= max_iterations:
+                    ending_condition = (
+                        f"Ending condition met. The judge {verb} end the game. Total"
+                        f" iterations played {iterations_played}."
+                    )
+                    log = models.ChatLogs(
+                        run_id=run.id,
+                        run_started_at=run.started_at,
+                        role=models.Role.system.name,
+                        card=card,
+                        llm=llm.to_json(),
+                        response=ending_condition,
+                    )
+                    session.add(log)
+                    session.commit()
+
+                    click.echo(ending_condition)
+                    break
+
+        except TimeoutError() as e:
+            ending_condition = (f"Timeout occurred. Total iterations played {iterations_played}. {e}")
+            log = models.ChatLogs(
+                run_id=run.id,
+                run_started_at=run.started_at,
+                role=models.Role.system.name,
+                card=card,
+                llm=llm.to_json(),
+                response=ending_condition,
+            )
+            session.add(log)
+            session.commit()
 
 
 @click.group()
@@ -92,87 +173,75 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
 
     This will have two agents, one guesser and one judge, play a game of Guess the Card
     """
-
-    run = models.Run()
-    click.echo(f"Run {run.id}")
-
-    with Session(models.postgres_engine) as session:
-        click.echo(f"initial_judge_prompt {initial_judge_prompt}")
-
-        llm = ChatOpenAI(
-            max_tokens=256,
-            model=models.OpenAIModels.gpt3.value,
-            n=1,
-            temperature=1.0,
-            model_kwargs={
-                "frequency_penalty": 0,
-                "presence_penalty": 0,
-            },
-        )
-
-        judge_memory = models.JudgeMemory()
-        judge_memory.set_context(initial_judge_prompt)
-        judge = models.Agent(
-            run=run,
-            role=models.Role.judge,
-            llm=llm,
-            session=session,
-            memory=judge_memory,
-            verbose=verbose,
-        )
-
-        guessor_memory = ConversationBufferMemory()
-        guessor = models.Agent(
-            run=run,
-            role=models.Role.guesser,
-            llm=llm,
-            session=session,
-            memory=guessor_memory,
-            verbose=verbose,
-        )
-
-        # prime the judge
-        judge.send_chat_message(initial_judge_prompt)
-        # prime the guesser; output will mutate in the loop below
-        guesser_response = guessor.send_chat_message(initial_guesser_prompt)
-
-        iterations_played = 0
-        while True:
-            judge_loop = judge.send_chat_message(guesser_response)
-            guesser_response = guessor.send_chat_message(judge_loop)
-
-            iterations_played += 1
-            eof = "EOF" in judge_loop
-            if eof or iterations_played >= max_iterations:
-                click.echo(
-                    f"Ending condition met EOF {eof} iterations played"
-                    f" {iterations_played}"
-                )
-                break
+    return guess_the_card(max_iterations, verbose)
 
 
 @cli.command()
-@click.option("--run-id", "-r", help="run_id of game to be audited", type=click.STRING)
-def audit(run_id: click.STRING):
-    """Send log to an LLM to review"""
+@click.option(
+    "--games",
+    "-g",
+    help="Total number of games to be played",
+    type=click.INT,
+)
+@click.option(
+    "--iterations",
+    "-i",
+    "max_iterations",
+    default=15,
+    help="Max number of iterations to be played",
+    type=click.INT,
+)
+@click.option(
+    "--verbose",
+    "-v",
+    default=False,
+    help="Verbose logging from Langchain",
+    type=click.BOOL,
+)
+def play_many(games: click.INT, max_iterations: click.INT, verbose: click.BOOL):
+    for game in range(games):
+        click.echo(f"Starting game {game}")
+        guess_the_card(max_iterations, verbose)
+
+@cli.command()
+@click.option("--run-id", "-r", help="Audit a single run", type=click.STRING)
+@click.option(
+    "--new",
+    "-n",
+    is_flag=True,
+    help="Generate labels for all runs that are not yet labeled",
+)
+@click.option("--all", "-a", is_flag=True, help="Generate labels for all runs")
+def label(run_id: click.STRING, new: click.BOOL, all: click.BOOL):
+    """Use LLM to label a run"""
+
     with Session(models.postgres_engine) as session:
-        results = (
-            session.query(models.ChatLogs)
-            .filter(models.ChatLogs.run_id == run_id)
-            .order_by(models.ChatLogs.created_at)
-        )
+        if not (run_id or new or all):
+            raise Exception("Must specify an argument")
 
-        replayed_log = [str(result) for result in results]
+        if run_id:
+            audit = models.RunLabel.from_run_id(session, run_id)
+            return audit.response
 
-        llm = ChatOpenAI(max_tokens=256, model=models.OpenAIModels.gpt3.value)
+        query = session.query(models.ChatLogs.run_id.distinct())
 
-        audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
-        response = audit_chain.run(
-            input=audit_prompt.format(
-                log=replayed_log, game_prompt=initial_judge_prompt
-            )
-        )
-        click.echo(f"Audit response: {response}")
+        # default logic is for --all
+        if new:
+            query = query.outerjoin(
+                models.RunLabel, models.ChatLogs.run_id == models.RunLabel.run_id
+            ).filter(models.RunLabel.run_id == None)
+
+        results = query.all()
+        click.echo(f"total results {len(results)}")
+        click.echo(results)
+
+        for row in results:
+            click.echo(f"Labeling run_id {row[0]}")
+            models.RunLabel.from_run_id(session, row[0])
+            # crude rate limiting
+            sleep(5)
+
+        return f"{len(results)} runs labeled"
 
 
 @cli.command()
