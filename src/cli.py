@@ -97,38 +97,54 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
             verbose=verbose,
         )
 
-        # prime the judge
-        judge.send_chat_message(initial_judge_prompt)
-        # prime the guesser; output will mutate in the loop below
-        guesser_response = guessor.send_chat_message(initial_guesser_prompt)
-
         iterations_played = 0
-        while True:
-            judge_loop = judge.send_chat_message(guesser_response)
-            guesser_response = guessor.send_chat_message(judge_loop)
+        try:
+            # prime the judge
+            judge.send_chat_message(initial_judge_prompt)
+            # prime the guesser; output will mutate in the loop below
+            guesser_response = guessor.send_chat_message(initial_guesser_prompt)
 
-            iterations_played += 1
-            eof = "EOF" in judge_loop
-            verb = "did" if eof else "did not"
 
-            if eof or iterations_played >= max_iterations:
-                ending_condition = (
-                    f"Ending condition met. The judge {verb} end the game. Total"
-                    f" iterations played {iterations_played}."
-                )
-                log = models.ChatLogs(
-                    run_id=run.id,
-                    run_started_at=run.started_at,
-                    role=models.Role.system.name,
-                    card=card,
-                    llm=llm.to_json(),
-                    response=ending_condition,
-                )
-                session.add(log)
-                session.commit()
+            while True:
+                judge_loop = judge.send_chat_message(guesser_response)
+                guesser_response = guessor.send_chat_message(judge_loop)
 
-                click.echo(ending_condition)
-                break
+                iterations_played += 1
+                eof = "EOF" in judge_loop
+                verb = "did" if eof else "did not"
+
+                if eof or iterations_played >= max_iterations:
+                    ending_condition = (
+                        f"Ending condition met. The judge {verb} end the game. Total"
+                        f" iterations played {iterations_played}."
+                    )
+                    log = models.ChatLogs(
+                        run_id=run.id,
+                        run_started_at=run.started_at,
+                        role=models.Role.system.name,
+                        card=card,
+                        llm=llm.to_json(),
+                        response=ending_condition,
+                    )
+                    session.add(log)
+                    session.commit()
+
+                    click.echo(ending_condition)
+                    break
+
+        except TimeoutError() as e:
+            ending_condition = (f"Timeout occurred. Total iterations played {iterations_played}. {e}")
+            log = models.ChatLogs(
+                run_id=run.id,
+                run_started_at=run.started_at,
+                role=models.Role.system.name,
+                card=card,
+                llm=llm.to_json(),
+                response=ending_condition,
+            )
+            session.add(log)
+            session.commit()
+
 
 @click.group()
 def cli():
