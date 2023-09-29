@@ -135,7 +135,6 @@ class RunLabel(Base):
         )
         replayed_log = [str(result) for result in results]
         first_chat_log: ChatLogs = results[0]
-        # total_responses = len([result for result in results if result.role in Role.players()])
 
         llm = ChatOpenAI(max_tokens=256, model=cls._model, verbose=True)
         prompt = RunLabel.get_prompt(log=replayed_log, card=first_chat_log.card)
