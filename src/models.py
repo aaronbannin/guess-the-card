@@ -11,7 +11,7 @@ from langchain.chains import ConversationChain
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.schema import HumanMessage, SystemMessage
-from sqlalchemy import create_engine, Column, String, DateTime, Text, JSON, Enum as SQLEnum
+from sqlalchemy import create_engine, Column, String, DateTime, Text, JSON
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import DeclarativeBase
@@ -72,6 +72,7 @@ class Base(DeclarativeBase):
 
 class ChatLogs(Base):
     """Life cycle events for a Run"""
+
     __tablename__ = "chat_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -90,12 +91,10 @@ class ChatLogs(Base):
         return f"{role.pretty} {str(self.response).strip()}"
 
 
-
-
-# RunLabel?
-class RunAudit(Base):
+class RunLabel(Base):
     """One Run can have many audits"""
-    __tablename__ = "run_audits"
+
+    __tablename__ = "run_labels"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     run_id = Column(UUID(as_uuid=True), nullable=False)
@@ -128,7 +127,7 @@ class RunAudit(Base):
         return cls._PROMPT.format(log=log, card=card).replace("\t", "")
 
     @classmethod
-    def from_run_id(cls, session: Session, run_id: str) -> 'RunAudit':
+    def from_run_id(cls, session: Session, run_id: str) -> "RunLabel":
         results = (
             session.query(ChatLogs)
             .filter(ChatLogs.run_id == run_id)
@@ -139,31 +138,28 @@ class RunAudit(Base):
         # total_responses = len([result for result in results if result.role in Role.players()])
 
         llm = ChatOpenAI(max_tokens=256, model=cls._model, verbose=True)
-        prompt = RunAudit.get_prompt(log=replayed_log, card=first_chat_log.card)
+        prompt = RunLabel.get_prompt(log=replayed_log, card=first_chat_log.card)
 
         audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
         response = audit_chain.run(
-            input=RunAudit.get_prompt(log=replayed_log, card=first_chat_log.card)
+            input=RunLabel.get_prompt(log=replayed_log, card=first_chat_log.card)
         )
 
         try:
+            # in case llm does not return json parsable string
             as_json = loads(response)
 
             audit = cls(
-                run_id=run_id,
-                response=as_json,
-                model=cls._model,
-                context=prompt
+                run_id=run_id, response=as_json, model=cls._model, context=prompt
             )
         except Exception as e:
             print(response)
             raise e
 
-
-
         session.add(audit)
         session.commit()
         return audit
+
 
 class Run:
     def __init__(self) -> None:

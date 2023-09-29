@@ -1,11 +1,9 @@
-from json import loads
 from time import sleep
 
 import click
 from langchain.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql.expression import over, func
 
 import models
 
@@ -53,25 +51,10 @@ You will only respond to guesses and hints.
 When the guesser identifies the card, you will respond with "EOF"
 
 The card you picked from the deck is {card}
-""".format(card=card)
+""".format(
+        card=card
+    )
 )
-
-# audit_prompt = """
-# # System
-# You are auditing the result of a conversation. The guesser or judge may lie or make a mistake.
-# The guesser must guess the card with the statement 'The card is a <value> of <suit>'.
-
-# # Conversation
-# {log}
-
-# # Response Format
-# Use the following JSON structure for your response. Your response will be used by software, not a human.
-# ```
-# {{ guesser_won: bool, overview: str }}
-# ```
-
-# Did the guesser correctly guess the card to be the {card}?
-# """
 
 
 @click.group()
@@ -157,14 +140,17 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
             verb = "did" if eof else "did not"
 
             if eof or iterations_played >= max_iterations:
-                ending_condition = f"Ending condition met. The judge {verb} end the game. Total iterations played {iterations_played}."
+                ending_condition = (
+                    f"Ending condition met. The judge {verb} end the game. Total"
+                    f" iterations played {iterations_played}."
+                )
                 log = models.ChatLogs(
                     run_id=run.id,
                     run_started_at=run.started_at,
                     role=models.Role.system.name,
                     card=card,
                     llm=llm.to_json(),
-                    response=ending_condition
+                    response=ending_condition,
                 )
                 session.add(log)
                 session.commit()
@@ -172,36 +158,42 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
                 click.echo(ending_condition)
                 break
 
+
 @cli.command()
 @click.option("--run-id", "-r", help="Audit a single run", type=click.STRING)
-@click.option("--new", "-n", is_flag=True, help="Generate labels for all runs that are not yet labeled")
+@click.option(
+    "--new",
+    "-n",
+    is_flag=True,
+    help="Generate labels for all runs that are not yet labeled",
+)
 @click.option("--all", "-a", is_flag=True, help="Generate labels for all runs")
-def audit(run_id: click.STRING, new: click.BOOL, all: click.BOOL):
-    """Send log to an LLM to review"""
+def label(run_id: click.STRING, new: click.BOOL, all: click.BOOL):
+    """Use LLM to label a run"""
 
     with Session(models.postgres_engine) as session:
         if not (run_id or new or all):
             raise Exception("Must specify an argument")
 
         if run_id:
-            audit = models.RunAudit.from_run_id(session, run_id)
+            audit = models.RunLabel.from_run_id(session, run_id)
             return audit.response
 
         query = session.query(models.ChatLogs.run_id.distinct())
 
         # default logic is for --all
         if new:
-            query = query \
-                .outerjoin(models.RunAudit, models.ChatLogs.run_id == models.RunAudit.run_id) \
-                .filter(models.RunAudit.run_id == None)
+            query = query.outerjoin(
+                models.RunLabel, models.ChatLogs.run_id == models.RunLabel.run_id
+            ).filter(models.RunLabel.run_id == None)
 
-        results = query.limit(3).all()
+        results = query.all()
         click.echo(f"total results {len(results)}")
         click.echo(results)
 
         for row in results:
             click.echo(f"Labeling run_id {row[0]}")
-            models.RunAudit.from_run_id(session, row[0])
+            models.RunLabel.from_run_id(session, row[0])
             # crude rate limiting
             sleep(5)
 
