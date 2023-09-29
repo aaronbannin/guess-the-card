@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm.session import Session
+from wrapt_timeout_decorator import *
 
 from config import Config
 
@@ -32,8 +33,23 @@ url = URL.create(
 postgres_engine = create_engine(url)
 
 
-# surely this already exists in the OpenAI library...
+class AgentChain(ConversationChain):
+    """
+    Subclassed from ConversationChain for minor customizations
+    """
+    @timeout(10)
+    def run(self, input: str) -> Any:
+        """
+        Call super().run() with a timeout
+        OpenAI occassionally hangs?
+        """
+        return super().run(input=input)
+
 class OpenAIModels(Enum):
+    """
+    Models availible from OpenAI
+    Sadly, this is not availible in their library
+    """
     gpt3_5_turbo_0613 = "gpt-3.5-turbo-0613"
     gpt3_5_turbo = "gpt-3.5-turbo"
     gpt3_5_turbo_16k = "gpt-3.5-turbo-16k"
@@ -139,7 +155,7 @@ class RunLabel(Base):
         llm = ChatOpenAI(max_tokens=256, model=cls._model, verbose=True)
         prompt = RunLabel.get_prompt(log=replayed_log, card=first_chat_log.card)
 
-        audit_chain = ConversationChain(llm=llm, memory=ConversationBufferMemory())
+        audit_chain = AgentChain(llm=llm, memory=ConversationBufferMemory())
         response = audit_chain.run(
             input=RunLabel.get_prompt(log=replayed_log, card=first_chat_log.card)
         )
@@ -216,7 +232,7 @@ class Agent:
         self.card = card
         self.llm = llm
         self.memory = memory if memory is not None else ConversationBufferMemory()
-        self.chain = ConversationChain(llm=llm, memory=self.memory, verbose=verbose)
+        self.chain = AgentChain(llm=llm, memory=self.memory, verbose=verbose)
         self.session = session
 
     def send_chat_message(self, message: str) -> str:
