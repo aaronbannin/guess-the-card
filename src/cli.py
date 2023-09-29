@@ -56,35 +56,7 @@ The card you picked from the deck is {card}
     )
 )
 
-
-@click.group()
-def cli():
-    pass
-
-
-@cli.command()
-@click.option(
-    "--iterations",
-    "-i",
-    "max_iterations",
-    default=15,
-    help="Max number of iterations to be played",
-    type=click.INT,
-)
-@click.option(
-    "--verbose",
-    "-v",
-    default=False,
-    help="Verbose logging from Langchain",
-    type=click.BOOL,
-)
-def play(max_iterations: click.INT, verbose: click.BOOL):
-    """
-    Let's play a game!!!
-
-    This will have two agents, one guesser and one judge, play a game of Guess the Card
-    """
-
+def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
     run = models.Run()
     click.echo(f"Run {run.id}")
 
@@ -158,6 +130,62 @@ def play(max_iterations: click.INT, verbose: click.BOOL):
                 click.echo(ending_condition)
                 break
 
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+@click.option(
+    "--iterations",
+    "-i",
+    "max_iterations",
+    default=15,
+    help="Max number of iterations to be played",
+    type=click.INT,
+)
+@click.option(
+    "--verbose",
+    "-v",
+    default=False,
+    help="Verbose logging from Langchain",
+    type=click.BOOL,
+)
+def play(max_iterations: click.INT, verbose: click.BOOL):
+    """
+    Let's play a game!!!
+
+    This will have two agents, one guesser and one judge, play a game of Guess the Card
+    """
+    return guess_the_card(max_iterations, verbose)
+
+
+@cli.command()
+@click.option(
+    "--games",
+    "-g",
+    help="Total number of games to be played",
+    type=click.INT,
+)
+@click.option(
+    "--iterations",
+    "-i",
+    "max_iterations",
+    default=15,
+    help="Max number of iterations to be played",
+    type=click.INT,
+)
+@click.option(
+    "--verbose",
+    "-v",
+    default=False,
+    help="Verbose logging from Langchain",
+    type=click.BOOL,
+)
+def play_many(games: click.INT, max_iterations: click.INT, verbose: click.BOOL):
+    for game in range(games):
+        click.echo(f"Starting game {game}")
+        guess_the_card(max_iterations, verbose)
 
 @cli.command()
 @click.option("--run-id", "-r", help="Audit a single run", type=click.STRING)
