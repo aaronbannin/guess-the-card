@@ -14,19 +14,20 @@ treatment = "default"
 game_prompt = GamePrompt(treatment)
 
 
-initial_guesser_prompt = InitialGuesserPrompt(treatment, {
-    "game_prompt": game_prompt,
-    "role": models.Role.guesser,
-    "values": ",".join(models.Deck.values),
-    "suits": ",".join(models.Deck.suits)
-})
+initial_guesser_prompt = InitialGuesserPrompt(
+    treatment,
+    {
+        "game_prompt": game_prompt,
+        "role": models.Role.guesser,
+        "values": ",".join(models.Deck.values),
+        "suits": ",".join(models.Deck.suits),
+    },
+)
 
 
-initial_judge_prompt = InitialJudgePrompt(treatment, {
-    "game_prompt": game_prompt,
-    "role": models.Role.judge,
-    "card": card
-})
+initial_judge_prompt = InitialJudgePrompt(
+    treatment, {"game_prompt": game_prompt, "role": models.Role.judge, "card": card}
+)
 
 
 def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
@@ -75,8 +76,9 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
             # prime the judge
             judge.send_chat_message(initial_judge_prompt.formatted_string)
             # prime the guesser; output will mutate in the loop below
-            guesser_response = guessor.send_chat_message(initial_guesser_prompt.formatted_string)
-
+            guesser_response = guessor.send_chat_message(
+                initial_guesser_prompt.formatted_string
+            )
 
             while True:
                 judge_loop = judge.send_chat_message(guesser_response)
@@ -106,7 +108,9 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
                     break
 
         except TimeoutError() as e:
-            ending_condition = (f"Timeout occurred. Total iterations played {iterations_played}. {e}")
+            ending_condition = (
+                f"Timeout occurred. Total iterations played {iterations_played}. {e}"
+            )
             log = models.ChatLogs(
                 run_id=run.id,
                 run_started_at=run.started_at,
@@ -175,6 +179,7 @@ def play_many(games: click.INT, max_iterations: click.INT, verbose: click.BOOL):
     for game in range(games):
         click.echo(f"Starting game {game}")
         guess_the_card(max_iterations, verbose)
+
 
 @cli.command()
 @click.option("--run-id", "-r", help="Label a single run", type=click.STRING)

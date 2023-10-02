@@ -3,17 +3,12 @@ from typing import Dict
 
 
 class PromptTreatment(ABC):
-
     def __init__(self, treatment: str, formatting_map: Dict[str, str] = None) -> None:
         self.treatment = treatment
         self.formatting_map = formatting_map
 
     def __str__(self) -> str:
-        prompt = (
-            getattr(self, self.treatment)
-            if hasattr(self, self.treatment)
-            else self.default
-        )
+        prompt = getattr(self, self.treatment, self.default)
         return str(prompt).replace("\t", "")
 
     @property
