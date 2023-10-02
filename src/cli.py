@@ -6,55 +6,29 @@ from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
 
 import models
+from prompts import GamePrompt, InitialGuesserPrompt, InitialJudgePrompt
 
 
 card = models.Deck.draw_card()
-game_prompt = """
-# Rules
-You are playing a game called 'Guess the card'.
-There are two players: the guesser and the judge.
+treatment = "default"
+game_prompt = GamePrompt(treatment)
 
-We start with a standard poker deck of 52 cards where the lowest value is 2 and the highest value is A.
-The suits, ordered left to right, are: diamonds, hearts, clubs, spades. Thus, clubs is to the right of both diamonds and hearts.
 
-The guesser will ask for hints from the judge until they are ready to guess the card.
-The guesser can ask for a hint in the form of 'Is the value of the card <value>?' or 'Is the suit of the card <suit>?'
-If the hint is for the value, the judge will respond 'higher', 'lower', or 'correct'.
-If the hint is for the suit, the judge will respond 'left', 'right', or 'correct'.
-
-The guesser can guess the card with the statement 'The card is a <value> of <suit>'.
-The guesser must guess the value in the correct format to win.
-
-You will be the {role}.
-"""
-
-initial_guesser_prompt = """
-{game_prompt}
-
-# Hints
-Below are some data structures to help you deduce the card.
-Values: {values}
-Suits: {suits}
-
-I am the judge; ask for your first hint.
-""".format(
-    game_prompt=game_prompt,
-    values=",".join(models.Deck.values),
-    suits=",".join(models.Deck.suits),
+initial_guesser_prompt = InitialGuesserPrompt(
+    treatment,
+    {
+        "game_prompt": game_prompt,
+        "role": models.Role.guesser,
+        "values": ",".join(models.Deck.values),
+        "suits": ",".join(models.Deck.suits),
+    },
 )
 
-initial_judge_prompt = (
-    game_prompt.format(role=models.Role.judge.value)
-    + """
-You will never lie.
-You will only respond to guesses and hints.
-When the guesser identifies the card, you will respond with "EOF"
 
-The card you picked from the deck is {card}
-""".format(
-        card=card
-    )
+initial_judge_prompt = InitialJudgePrompt(
+    treatment, {"game_prompt": game_prompt, "role": models.Role.judge, "card": card}
 )
+
 
 def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
     run = models.Run()
@@ -75,7 +49,7 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
         )
 
         judge_memory = models.JudgeMemory()
-        judge_memory.set_context(initial_judge_prompt)
+        judge_memory.set_context(initial_judge_prompt.formatted_string)
         judge = models.Agent(
             run=run,
             role=models.Role.judge,
@@ -100,10 +74,11 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
         iterations_played = 0
         try:
             # prime the judge
-            judge.send_chat_message(initial_judge_prompt)
+            judge.send_chat_message(initial_judge_prompt.formatted_string)
             # prime the guesser; output will mutate in the loop below
-            guesser_response = guessor.send_chat_message(initial_guesser_prompt)
-
+            guesser_response = guessor.send_chat_message(
+                initial_guesser_prompt.formatted_string
+            )
 
             while True:
                 judge_loop = judge.send_chat_message(guesser_response)
@@ -133,7 +108,9 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
                     break
 
         except TimeoutError() as e:
-            ending_condition = (f"Timeout occurred. Total iterations played {iterations_played}. {e}")
+            ending_condition = (
+                f"Timeout occurred. Total iterations played {iterations_played}. {e}"
+            )
             log = models.ChatLogs(
                 run_id=run.id,
                 run_started_at=run.started_at,
@@ -203,8 +180,9 @@ def play_many(games: click.INT, max_iterations: click.INT, verbose: click.BOOL):
         click.echo(f"Starting game {game}")
         guess_the_card(max_iterations, verbose)
 
+
 @cli.command()
-@click.option("--run-id", "-r", help="Audit a single run", type=click.STRING)
+@click.option("--run-id", "-r", help="Label a single run", type=click.STRING)
 @click.option(
     "--new",
     "-n",

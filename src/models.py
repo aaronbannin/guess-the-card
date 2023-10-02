@@ -11,6 +11,7 @@ from langchain.chains import ConversationChain
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.schema import HumanMessage, SystemMessage
+from langchain.prompts.prompt import PromptTemplate
 from sqlalchemy import create_engine, Column, String, DateTime, Text, JSON
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.engine import URL
@@ -33,10 +34,23 @@ url = URL.create(
 postgres_engine = create_engine(url)
 
 
+AGENT_CHAIN_PROMPT_TEMPLATE = """
+Current conversation:
+{history}
+Human: {input}
+AI:
+"""
+
+
 class AgentChain(ConversationChain):
     """
     Subclassed from ConversationChain for minor customizations
     """
+
+    prompt = PromptTemplate(
+        input_variables=["history", "input"], template=AGENT_CHAIN_PROMPT_TEMPLATE
+    )
+
     @timeout(10)
     def run(self, input: str) -> Any:
         """
@@ -45,11 +59,13 @@ class AgentChain(ConversationChain):
         """
         return super().run(input=input)
 
+
 class OpenAIModels(Enum):
     """
     Models availible from OpenAI
     Sadly, this is not availible in their library
     """
+
     gpt3_5_turbo_0613 = "gpt-3.5-turbo-0613"
     gpt3_5_turbo = "gpt-3.5-turbo"
     gpt3_5_turbo_16k = "gpt-3.5-turbo-16k"
@@ -168,6 +184,7 @@ class RunLabel(Base):
                 run_id=run_id, response=as_json, model=cls._model, context=prompt
             )
         except Exception as e:
+            print("Unable to build label from response")
             print(response)
             raise e
 
