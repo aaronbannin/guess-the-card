@@ -6,6 +6,7 @@ To assess GPT's reasoning skills, I devised a two-player game featuring roles of
 - **Turn Based**: Players take actions in a sequential manner, enabling asynchronous play and facilitating scripting.
 - **Asymmetric Information**: The judge possesses knowledge of the card's value, while the guesser remains unaware.
 - **Winnable**: The game is designed such that the guesser can potentially win every round.
+- **Agency**: The guesser must choose it's actions; the judge has no agency and is bound by the rules.
 
 Each player is represented by an instance of [LangChain Chain](https://python.langchain.com/docs/modules/chains/). Both players are primed with a prompt that explains the game rules and assigns their respective roles. Langchain also handles memory management for each agent through its [memory](https://python.langchain.com/docs/modules/memory/) module, which populates the context window during interactions.
 

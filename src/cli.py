@@ -10,38 +10,75 @@ from prompts import GamePrompt, InitialGuesserPrompt, InitialJudgePrompt
 
 
 card = models.Deck.draw_card()
-treatment = "default"
-game_prompt = GamePrompt(treatment)
+# treatment = "default"
 
 
-initial_guesser_prompt = InitialGuesserPrompt(
-    treatment,
-    {
-        "game_prompt": game_prompt,
-        "role": models.Role.guesser,
-        "values": ",".join(models.Deck.values),
-        "suits": ",".join(models.Deck.suits),
-    },
-)
+
+# initial_guesser_prompt = InitialGuesserPrompt(
+#     treatment,
+#     {
+#         "game_prompt": game_prompt,
+#         "values": ",".join(models.Deck.values),
+#         "suits": ",".join(models.Deck.suits),
+#     },
+# )
 
 
-initial_judge_prompt = InitialJudgePrompt(
-    treatment, {"game_prompt": game_prompt, "role": models.Role.judge, "card": card}
-)
+# initial_judge_prompt = InitialJudgePrompt(
+#     treatment, {"game_prompt": game_prompt, "card": card}
+# )
 
+def play_options(function):
+    """Decorator to share options for Play commands"""
+    function = click.option(
+        "--iterations",
+        "-i",
+        "max_iterations",
+        default=15,
+        help="Max number of iterations to be played",
+        type=click.INT,
+    )(function)
+    function = click.option(
+        "--treatment",
+        "-t",
+        default="default",
+        help="Choose prompt treatment",
+        type=click.STRING,
+    )(function)
+    function = click.option(
+        "--verbose",
+        "-v",
+        default=False,
+        help="Verbose logging from Langchain",
+        type=click.BOOL,
+    )(function)
+    return function
 
-def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
+def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: click.STRING):
     run = models.Run()
-    click.echo(f"Run {run.id}")
+    click.echo(f"Run {run.id} Treatment {treatment}")
+
+    game_prompt = GamePrompt(treatment)
+    initial_guesser_prompt = InitialGuesserPrompt(
+        treatment,
+        {
+            "game_prompt": game_prompt,
+            "values": ",".join(models.Deck.values),
+            "suits": ",".join(models.Deck.suits),
+        },
+    )
+    initial_judge_prompt = InitialJudgePrompt(
+        treatment, {"game_prompt": game_prompt, "card": card}
+    )
 
     with Session(models.postgres_engine) as session:
-        click.echo(f"initial_judge_prompt {initial_judge_prompt}")
+        click.echo(f"initial_judge_prompt {initial_judge_prompt.formatted_string}")
 
         llm = ChatOpenAI(
             max_tokens=256,
             model=models.OpenAIModels.gpt3_5_turbo.value,
             n=1,
-            temperature=1.0,
+            temperature=0.8,
             model_kwargs={
                 "frequency_penalty": 0,
                 "presence_penalty": 0,
@@ -73,8 +110,6 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL):
 
         iterations_played = 0
         try:
-            # prime the judge
-            judge.send_chat_message(initial_judge_prompt.formatted_string)
             # prime the guesser; output will mutate in the loop below
             guesser_response = guessor.send_chat_message(
                 initial_guesser_prompt.formatted_string
@@ -129,56 +164,28 @@ def cli():
 
 
 @cli.command()
-@click.option(
-    "--iterations",
-    "-i",
-    "max_iterations",
-    default=15,
-    help="Max number of iterations to be played",
-    type=click.INT,
-)
-@click.option(
-    "--verbose",
-    "-v",
-    default=False,
-    help="Verbose logging from Langchain",
-    type=click.BOOL,
-)
-def play(max_iterations: click.INT, verbose: click.BOOL):
+@play_options
+def play(max_iterations: click.INT, verbose: click.BOOL, treatment: click.STRING):
     """
     Let's play a game!!!
 
     This will have two agents, one guesser and one judge, play a game of Guess the Card
     """
-    return guess_the_card(max_iterations, verbose)
+    return guess_the_card(max_iterations, verbose, treatment)
 
 
 @cli.command()
+@play_options
 @click.option(
     "--games",
     "-g",
     help="Total number of games to be played",
     type=click.INT,
 )
-@click.option(
-    "--iterations",
-    "-i",
-    "max_iterations",
-    default=15,
-    help="Max number of iterations to be played",
-    type=click.INT,
-)
-@click.option(
-    "--verbose",
-    "-v",
-    default=False,
-    help="Verbose logging from Langchain",
-    type=click.BOOL,
-)
-def play_many(games: click.INT, max_iterations: click.INT, verbose: click.BOOL):
+def play_many(games: click.INT, max_iterations: click.INT, verbose: click.BOOL, treatment: click.STRING):
     for game in range(games):
         click.echo(f"Starting game {game}")
-        guess_the_card(max_iterations, verbose)
+        guess_the_card(max_iterations, verbose, treatment)
 
 
 @cli.command()
