@@ -10,23 +10,6 @@ from prompts import GamePrompt, InitialGuesserPrompt, InitialJudgePrompt
 
 
 card = models.Deck.draw_card()
-# treatment = "default"
-
-
-
-# initial_guesser_prompt = InitialGuesserPrompt(
-#     treatment,
-#     {
-#         "game_prompt": game_prompt,
-#         "values": ",".join(models.Deck.values),
-#         "suits": ",".join(models.Deck.suits),
-#     },
-# )
-
-
-# initial_judge_prompt = InitialJudgePrompt(
-#     treatment, {"game_prompt": game_prompt, "card": card}
-# )
 
 def play_options(function):
     """Decorator to share options for Play commands"""
