@@ -13,6 +13,7 @@ class PromptTreatment(ABC):
 
     @property
     def formatted_string(self):
+        """Returns the prompt string. Use `default` if current treatment is not found."""
         return str(self).format(**self.formatting_map)
 
     @property

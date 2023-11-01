@@ -57,16 +57,17 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
     with Session(models.postgres_engine) as session:
         click.echo(f"initial_judge_prompt {initial_judge_prompt.formatted_string}")
 
-        llm = ChatOpenAI(
-            max_tokens=256,
-            model=models.OpenAIModels.gpt3_5_turbo.value,
-            n=1,
-            temperature=0.8,
-            model_kwargs={
-                "frequency_penalty": 0,
-                "presence_penalty": 0,
-            },
-        )
+        def get_llm(model: models.OpenAIModels):
+            return ChatOpenAI(
+                max_tokens=256,
+                model=model.value,
+                n=1,
+                temperature=0.8,
+                model_kwargs={
+                    "frequency_penalty": 0,
+                    "presence_penalty": 0,
+                },
+            )
 
         judge_memory = models.JudgeMemory()
         judge_memory.set_context(initial_judge_prompt.formatted_string)
@@ -74,7 +75,7 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
             run=run,
             role=models.Role.judge,
             card=card,
-            llm=llm,
+            llm=get_llm(models.OpenAIModels.gpt3_5_turbo),
             session=session,
             memory=judge_memory,
             verbose=verbose,
@@ -85,7 +86,7 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
             run=run,
             role=models.Role.guesser,
             card=card,
-            llm=llm,
+            llm=get_llm(models.OpenAIModels.gpt3_5_ft),
             session=session,
             memory=guessor_memory,
             verbose=verbose,
@@ -116,7 +117,8 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
                         run_started_at=run.started_at,
                         role=models.Role.system.name,
                         card=card,
-                        llm=llm.to_json(),
+                        llm={},
+                        treatment=treatment,
                         response=ending_condition,
                     )
                     session.add(log)
@@ -134,7 +136,7 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
                 run_started_at=run.started_at,
                 role=models.Role.system.name,
                 card=card,
-                llm=llm.to_json(),
+                llm={},
                 response=ending_condition,
             )
             session.add(log)
