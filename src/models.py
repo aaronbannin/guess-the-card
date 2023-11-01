@@ -69,6 +69,7 @@ class OpenAIModels(Enum):
     gpt3_5_turbo_0613 = "gpt-3.5-turbo-0613"
     gpt3_5_turbo = "gpt-3.5-turbo"
     gpt3_5_turbo_16k = "gpt-3.5-turbo-16k"
+    gpt3_5_ft = "ft:gpt-3.5-turbo-0613:personal::8G9xDV6J"
     gpt4 = "gpt-4"
 
 
@@ -115,6 +116,7 @@ class ChatLogs(Base):
     llm = Column(JSON)
     response = Column(Text, nullable=False)
     context = Column(Text)
+    treatment = Column(Text)
     created_at = Column(DateTime(), default=datetime.now)
     updated_at = Column(DateTime(), default=datetime.now, onupdate=datetime.now)
 
@@ -149,9 +151,9 @@ class RunLabel(Base):
         Use the following JSON structure for your response. Your response will be used by software, not a human.
         ```
         {{ guesser_won: bool, overview: str }}
+        ```
 
         Did the guesser correctly guess the card to be the {card}?
-        ```
         """
 
     @classmethod
