@@ -37,8 +37,16 @@ class GamePrompt(PromptTreatment):
 
         The guesser can guess the card with the statement 'The card is a <value> of <suit>'.
         The guesser must guess the value in the correct format to win.
+    """
 
-        You will be the {role}.
+    minimal = """
+        You are playing a game called 'Guess the card'.
+        There are two players: the guesser and the judge.
+
+        The guesser asks for information about the card from the judge.
+        The judge responds to guesser hints but will never reveal the card.
+
+        The guesser wins when they state 'The card is a <value> of <suit>.
     """
 
 
@@ -54,14 +62,42 @@ class InitialGuesserPrompt(PromptTreatment):
         I am the judge; ask for your first hint.
     """
 
+    minimal = """
+        {game_prompt}
+
+        I am the judge.
+    """
+
+    teaching_judge = """
+        You are playing a game. Figure out how to win.
+        On each turn, explain your logic.
+    """
 
 class InitialJudgePrompt(PromptTreatment):
     default = """
         {game_prompt}
 
+        You are the judge.
         You will never lie.
         You will only respond to guesses and hints.
+        When the guesser identifies the card, you will respond with "EOF".
+
+        The card you picked from the deck is {card}
+    """
+
+    minimal = """
+        {game_prompt}
+
+        You are the judge.
         When the guesser identifies the card, you will respond with "EOF"
+        The card you picked from the deck is {card}
+    """
+
+    teaching_judge = """
+        {game_prompt}
+
+        You are the judge. You will never lie.
+        You need to teach the game to the guesser.
 
         The card you picked from the deck is {card}
     """
