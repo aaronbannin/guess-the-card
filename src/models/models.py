@@ -8,7 +8,7 @@ from uuid import uuid1, uuid4
 
 from click import echo
 from langchain.chains import ConversationChain
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models.base import BaseChatModel
 from langchain.memory import ConversationBufferMemory
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.prompts.prompt import PromptTemplate
@@ -20,6 +20,7 @@ from sqlalchemy.orm.session import Session
 from wrapt_timeout_decorator import *
 
 from config import Config
+from models.llms import LLMFactory, OpenAIModels
 
 
 # connect to db
@@ -58,19 +59,6 @@ class AgentChain(ConversationChain):
         OpenAI occassionally hangs?
         """
         return super().run(input=input)
-
-
-class OpenAIModels(Enum):
-    """
-    Models availible from OpenAI
-    Sadly, this is not availible in their library
-    """
-
-    gpt3_5_turbo_0613 = "gpt-3.5-turbo-0613"
-    gpt3_5_turbo = "gpt-3.5-turbo"
-    gpt3_5_turbo_16k = "gpt-3.5-turbo-16k"
-    gpt3_5_ft = "ft:gpt-3.5-turbo-0613:personal::8G9xDV6J"
-    gpt4 = "gpt-4"
 
 
 class Role(Enum):
@@ -170,7 +158,8 @@ class RunLabel(Base):
         replayed_log = [str(result) for result in results]
         first_chat_log: ChatLogs = results[0]
 
-        llm = ChatOpenAI(max_tokens=256, model=cls._model, verbose=True)
+        llm = LLMFactory.chat(cls._model)
+        # llm = ChatOpenAI(max_tokens=256, model=cls._model, verbose=True)
         prompt = RunLabel.get_prompt(log=replayed_log, card=first_chat_log.card)
 
         audit_chain = AgentChain(llm=llm, memory=ConversationBufferMemory())
@@ -241,7 +230,7 @@ class Agent:
         run: Run,
         role: Role,
         card: String,
-        llm: ChatOpenAI,
+        llm: BaseChatModel,
         session: Session,
         verbose=False,
         memory: ConversationBufferMemory = None,
@@ -276,6 +265,5 @@ class Agent:
 
         echo(log)
         return str(response)
-
 
 Base.metadata.create_all(postgres_engine)

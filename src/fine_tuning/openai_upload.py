@@ -5,7 +5,7 @@ from pathlib import Path
 import openai
 from dotenv import load_dotenv
 
-from models import OpenAIModels
+from models.models import OpenAIModels
 
 
 load_dotenv()

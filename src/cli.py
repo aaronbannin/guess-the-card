@@ -5,7 +5,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
 
-import models
+import models.models as models
 from prompts import GamePrompt, InitialGuesserPrompt, InitialJudgePrompt
 
 
