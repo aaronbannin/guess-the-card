@@ -5,7 +5,7 @@ from pathlib import Path
 import openai
 from dotenv import load_dotenv
 
-from models.models import OpenAIModels
+from models import OpenAIModels
 
 
 load_dotenv()
@@ -25,7 +25,7 @@ def main():
     print("file uploaded")
     print(file)
 
-    ft = openai.FineTuningJob.create(training_file=file["id"], model="gpt-3.5-turbo")
+    ft = openai.FineTuningJob.create(training_file=file["id"], model=OpenAIModels.gpt3_5_turbo)
     print("fine tuning job created")
     print(ft)
 

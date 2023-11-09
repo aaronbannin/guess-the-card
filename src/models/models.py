@@ -43,23 +43,27 @@ AI:
 """
 
 
-class AgentChain(ConversationChain):
-    """
-    Subclassed from ConversationChain for minor customizations
-    """
+# class AgentChain(ConversationChain):
+#     """
+#     Subclassed from ConversationChain for minor customizations
+#     """
 
-    prompt = PromptTemplate(
-        input_variables=["history", "input"], template=AGENT_CHAIN_PROMPT_TEMPLATE
-    )
+#     prompt = PromptTemplate(
+#         input_variables=["history", "input"], template=AGENT_CHAIN_PROMPT_TEMPLATE
+#     )
 
-    @timeout(10)
-    def run(self, input: str) -> Any:
-        """
-        Call super().run() with a timeout
-        OpenAI occassionally hangs?
-        """
-        return super().run(input=input)
+#     @timeout(10)
+#     def run(self, input: str) -> Any:
+#         """
+#         Call super().run() with a timeout
+#         OpenAI occassionally hangs?
+#         """
+#         return super().run(input=input)
 
+
+# class AgentChain(ConversationChain):
+#     def __init__(self, *args, **kwargs):
+#         pass
 
 class Role(Enum):
     judge = "judge"
@@ -68,6 +72,11 @@ class Role(Enum):
 
     @DynamicClassAttribute
     def pretty(self, suffix: str = " :") -> str:
+        """
+        Returns the string representation of the role with a right justified suffix.
+        All values are the same length.
+        `judge  :` or `guesser :`
+        """
         target_length = max([len(k) for k in self.__class__.__members__.keys()])
         suffix_with_padding = " " * (target_length - len(self._name_)) + suffix
         return self._name_ + suffix_with_padding
@@ -223,6 +232,7 @@ class GuesserMemory(ConversationBufferMemory):
         self.chat_memory.messages.pop()
         self.chat_memory.add_ai_message(output_str)
 
+from models.together import TogetherAI, HackedMemory
 
 class Agent:
     def __init__(
@@ -230,17 +240,19 @@ class Agent:
         run: Run,
         role: Role,
         card: String,
-        llm: BaseChatModel,
+        llm: TogetherAI,
         session: Session,
         verbose=False,
-        memory: ConversationBufferMemory = None,
+        # memory: ConversationBufferMemory = None,
+        memory: HackedMemory = None,
     ) -> None:
         self.run = run
         self.role = role
         self.card = card
         self.llm = llm
-        self.memory = memory if memory is not None else ConversationBufferMemory()
-        self.chain = AgentChain(llm=llm, memory=self.memory, verbose=verbose)
+        # self.memory = memory if memory is not None else ConversationBufferMemory()
+        self.memory = memory if memory is not None else HackedMemory(role.value)
+        # self.chain = AgentChain(llm=llm, memory=self.memory, verbose=verbose)
         self.session = session
 
     def send_chat_message(self, message: str) -> str:
@@ -249,7 +261,17 @@ class Agent:
 
         ConversationChain.memory needs to be a ConversationBufferMemory object
         """
-        response = self.chain.run(input=message)
+        print(f"{self.role} send_chat_message")
+        echo(self.memory.buffer_as_str)
+        echo("\n\n")
+        # response = self.chain.run(input=message)
+        self.memory.add_human_message(message)
+        # echo(message)
+
+        response = self.llm.chat(self.memory.buffer_as_str)
+        self.memory.add_assistant_message(response.output)
+        # echo(response.output)
+
 
         log = ChatLogs(
             run_id=self.run.id,
@@ -257,13 +279,13 @@ class Agent:
             role=self.role.name,
             card=self.card,
             llm=self.llm.to_json(),
-            response=response,
+            response=response.output,
             context=self.memory.buffer_as_str,
         )
         self.session.add(log)
         self.session.commit()
 
         echo(log)
-        return str(response)
+        return str(response.output)
 
 Base.metadata.create_all(postgres_engine)
