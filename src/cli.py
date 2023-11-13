@@ -146,6 +146,8 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
                     click.echo(ending_condition)
                     break
 
+                sleep(5)
+
         except TimeoutError() as e:
             ending_condition = (
                 f"Timeout occurred. Total iterations played {iterations_played}. {e}"
