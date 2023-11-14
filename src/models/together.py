@@ -77,6 +77,7 @@ class LLAMAMemory(HackedMemory):
     https://replicate.com/blog/how-to-prompt-llama#system-prompts
     https://huggingface.co/blog/llama2#how-to-prompt-llama-2
     https://discuss.huggingface.co/t/trying-to-understand-system-prompts-with-llama-2-and-transformers-interface/59016/4
+    https://github.com/TrelisResearch/llama-2-setup
     """
 
     human_template = "[INST]\n{prompt}\n[/INST]"
