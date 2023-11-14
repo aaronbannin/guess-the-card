@@ -14,6 +14,10 @@ from models.llms import TogetherModels
 
 
 class Persona(Enum):
+    """
+    The different personas that can be used in the conversation.
+    The concepts are shared across LLMs, but message formatting may differ.
+    """
     system = "system"
     human = "human"
     assistant = "assistant"
@@ -24,6 +28,10 @@ class Message(BaseModel):
 
     @property
     def as_string(self) -> str:
+        """
+        Pretty print the message.
+        Should probably be named `pretty`?
+        """
         return f"{self.persona.value}: {self.content}"
 
 class HackedMemory:
@@ -87,32 +95,38 @@ class LLAMAMemory(HackedMemory):
             return message.content
 
 class JudgeMemory(LLAMAMemory):
+    """
+    Judge is stateless; it only needs to respond to the most recent message.
+    Only save the game rules, do not carry forward any other messages.
+    """
     def add_inital_message(self, content) -> list[Message]:
         super().add_human_message(content)
 
     def add_human_message(self, content: str) -> list[Message]:
         self.set_buffer()
         return super().add_human_message(content)
-        # return []
 
     def add_assistant_message(self, content: str) -> list[Message]:
-        # return super().add_assistant_message(content)
         return []
 
     def set_buffer(self) -> list[Message]:
         self.buffer = self.buffer[:1]
 
 class LLMResponse(BaseModel):
+    """
+    Standardized interface for LLM responses.
+    `raw` allows the LLM specifics to leak through.
+    """
     input: str
     output: str
     raw: dict[str, Any]
 
 
 class TogetherAI:
-    def __init__(self):
+    def __init__(self, model: TogetherModels):
         together.api_key = Config.TOGETHER_API_KEY
-        # self.model = "togethercomputer/RedPajama-INCITE-7B-Instruct"
-        self.model = TogetherModels.llama2_7b_chat.value
+        # self.model = TogetherModels.llama2_7b_chat.value
+        self.model = model.value
 
 
     @on_exception(expo, RateLimitException, max_tries=8)

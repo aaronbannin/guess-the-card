@@ -1,12 +1,10 @@
 from time import sleep
 
 import click
-from langchain.memory import ConversationBufferMemory
-# from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
 
 import models
-from models.together import HackedMemory, TogetherAI, Message, LLAMAMemory, JudgeMemory
+from models import TogetherAI, LLAMAMemory, JudgeMemory
 from prompts import GamePrompt, InitialGuesserPrompt, InitialJudgePrompt
 
 
@@ -58,56 +56,31 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
     with Session(models.postgres_engine) as session:
         click.echo(f"initial_judge_prompt {initial_judge_prompt.formatted_string}")
 
-        # def get_llm(model: models.OpenAIModels):
-        #     return ChatOpenAI(
-        #         max_tokens=256,
-        #         model=model.value,
-        #         n=1,
-        #         temperature=0.8,
-        #         model_kwargs={
-        #             "frequency_penalty": 0,
-        #             "presence_penalty": 0,
-        #         },
-        #     )
-
         agent_kwargs = {
             "run": run,
             "card": card,
-            "session": session,
-            # "verbose": verbose
+            "session": session
         }
-        # judge_memory = models.JudgeMemory()
-        # judge_memory.set_context(initial_judge_prompt.formatted_string)
 
         judge_memory = JudgeMemory(models.Role.judge.value)
         judge_memory.add_inital_message(initial_judge_prompt.formatted_string)
 
 
         judge = models.Agent(
-            # run=run,
             role=models.Role.judge,
-            # card=card,
             # llm=models.LLMFactory(models.OpenAIModels.gpt3_5_turbo),
             # llm=models.LLMFactory.chat(models.TogetherModels.llama2_7b),
             llm=TogetherAI(),
-            # session=session,
             memory=judge_memory,
-            # verbose=verbose,
             **agent_kwargs
         )
 
-        guessor_memory = ConversationBufferMemory()
         guessor = models.Agent(
-            # run=run,
             role=models.Role.guesser,
-            # card=card,
             # llm=models.LLMFactory(models.OpenAIModels.gpt3_5_ft),
             # llm=models.LLMFactory.chat(models.TogetherModels.llama2_7b),
             llm=TogetherAI(),
-            # session=session,
-            # memory=guessor_memory,
             memory=LLAMAMemory(models.Role.guesser.value),
-            # verbose=verbose,
             **agent_kwargs
         )
 
