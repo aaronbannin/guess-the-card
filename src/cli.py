@@ -74,7 +74,7 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
             "run": run,
             "card": card,
             "session": session,
-            "verbose": verbose
+            # "verbose": verbose
         }
         # judge_memory = models.JudgeMemory()
         # judge_memory.set_context(initial_judge_prompt.formatted_string)
@@ -84,12 +84,12 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
 
 
         judge = models.Agent(
-            run=run,
+            # run=run,
             role=models.Role.judge,
             # card=card,
             # llm=models.LLMFactory(models.OpenAIModels.gpt3_5_turbo),
-            llm=models.LLMFactory.chat(models.TogetherModels.llama2_7b),
-            # llm=TogetherAI(),
+            # llm=models.LLMFactory.chat(models.TogetherModels.llama2_7b),
+            llm=TogetherAI(),
             # session=session,
             memory=judge_memory,
             # verbose=verbose,
@@ -98,7 +98,7 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
 
         guessor_memory = ConversationBufferMemory()
         guessor = models.Agent(
-            run=run,
+            # run=run,
             role=models.Role.guesser,
             # card=card,
             # llm=models.LLMFactory(models.OpenAIModels.gpt3_5_ft),
