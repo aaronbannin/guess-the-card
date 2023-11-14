@@ -8,9 +8,9 @@ from uuid import uuid1, uuid4
 
 from click import echo
 from langchain.chains import ConversationChain
-from langchain.chat_models import ChatOpenAI
+# from langchain.chat_models.base import BaseChatModel
 from langchain.memory import ConversationBufferMemory
-from langchain.schema import HumanMessage, SystemMessage
+# from langchain.schema import HumanMessage, SystemMessage
 from langchain.prompts.prompt import PromptTemplate
 from sqlalchemy import create_engine, Column, String, DateTime, Text, JSON
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -20,6 +20,7 @@ from sqlalchemy.orm.session import Session
 from wrapt_timeout_decorator import *
 
 from config import Config
+from models.llms import LLMFactory, OpenAIModels
 
 
 # connect to db
@@ -60,18 +61,9 @@ class AgentChain(ConversationChain):
         return super().run(input=input)
 
 
-class OpenAIModels(Enum):
-    """
-    Models availible from OpenAI
-    Sadly, this is not availible in their library
-    """
-
-    gpt3_5_turbo_0613 = "gpt-3.5-turbo-0613"
-    gpt3_5_turbo = "gpt-3.5-turbo"
-    gpt3_5_turbo_16k = "gpt-3.5-turbo-16k"
-    gpt3_5_ft = "ft:gpt-3.5-turbo-0613:personal::8G9xDV6J"
-    gpt4 = "gpt-4"
-
+# class AgentChain(ConversationChain):
+#     def __init__(self, *args, **kwargs):
+#         pass
 
 class Role(Enum):
     judge = "judge"
@@ -80,6 +72,11 @@ class Role(Enum):
 
     @DynamicClassAttribute
     def pretty(self, suffix: str = " :") -> str:
+        """
+        Returns the string representation of the role with a right justified suffix.
+        All values are the same length.
+        `judge  :` or `guesser :`
+        """
         target_length = max([len(k) for k in self.__class__.__members__.keys()])
         suffix_with_padding = " " * (target_length - len(self._name_)) + suffix
         return self._name_ + suffix_with_padding
@@ -170,7 +167,8 @@ class RunLabel(Base):
         replayed_log = [str(result) for result in results]
         first_chat_log: ChatLogs = results[0]
 
-        llm = ChatOpenAI(max_tokens=256, model=cls._model, verbose=True)
+        llm = LLMFactory.chat(cls._model)
+        # llm = ChatOpenAI(max_tokens=256, model=cls._model, verbose=True)
         prompt = RunLabel.get_prompt(log=replayed_log, card=first_chat_log.card)
 
         audit_chain = AgentChain(llm=llm, memory=ConversationBufferMemory())
@@ -201,39 +199,40 @@ class Run:
         self.started_at = datetime.now()
 
 
-class JudgeMemory(ConversationBufferMemory):
-    ai_prefix: str = "AI"
-    human_prefix: str = "Human"
-    system_prefix: str = "System"
+# class JudgeMemory(ConversationBufferMemory):
+#     ai_prefix: str = "AI"
+#     human_prefix: str = "Human"
+#     system_prefix: str = "System"
 
-    def set_context(self, initial_prompt: str) -> None:
-        """Seed messages for chat"""
-        self.chat_memory.add_message(SystemMessage(content=initial_prompt))
+#     def set_context(self, initial_prompt: str) -> None:
+#         """Seed messages for chat"""
+#         self.chat_memory.add_message(SystemMessage(content=initial_prompt))
 
-    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
-        """Override: Do not add new responses, only carry forward system message."""
-        pass
+#     def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
+#         """Override: Do not add new responses, only carry forward system message."""
+#         pass
 
 
-class GuesserMemory(ConversationBufferMemory):
-    ai_prefix: str = "AI"
-    human_prefix: str = "Human"
-    system_prefix: str = "System"
+# class GuesserMemory(ConversationBufferMemory):
+#     ai_prefix: str = "AI"
+#     human_prefix: str = "Human"
+#     system_prefix: str = "System"
 
-    def set_context(self, rules: str, initial_prompt: str) -> None:
-        """Seed messages for chat"""
-        self.chat_memory.add_message(SystemMessage(content=rules))
-        self.chat_memory.add_message(HumanMessage(content=initial_prompt))
-        # empty message because so we don't lose the rules
-        self.chat_memory.add_message(HumanMessage(content=""))
+#     def set_context(self, rules: str, initial_prompt: str) -> None:
+#         """Seed messages for chat"""
+#         self.chat_memory.add_message(SystemMessage(content=rules))
+#         self.chat_memory.add_message(HumanMessage(content=initial_prompt))
+#         # empty message because so we don't lose the rules
+#         self.chat_memory.add_message(HumanMessage(content=""))
 
-    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
-        """Override: Only add most recent response"""
-        _, output_str = self._get_input_output(inputs, outputs)
-        # remove last message
-        self.chat_memory.messages.pop()
-        self.chat_memory.add_ai_message(output_str)
+#     def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
+#         """Override: Only add most recent response"""
+#         _, output_str = self._get_input_output(inputs, outputs)
+#         # remove last message
+#         self.chat_memory.messages.pop()
+#         self.chat_memory.add_ai_message(output_str)
 
+from models.together import TogetherAI, HackedMemory
 
 class Agent:
     def __init__(
@@ -241,26 +240,30 @@ class Agent:
         run: Run,
         role: Role,
         card: String,
-        llm: ChatOpenAI,
+        llm: TogetherAI,
         session: Session,
-        verbose=False,
-        memory: ConversationBufferMemory = None,
+        memory: HackedMemory = None,
     ) -> None:
         self.run = run
         self.role = role
         self.card = card
         self.llm = llm
-        self.memory = memory if memory is not None else ConversationBufferMemory()
-        self.chain = AgentChain(llm=llm, memory=self.memory, verbose=verbose)
+        self.memory = memory if memory is not None else HackedMemory(role.value)
         self.session = session
 
     def send_chat_message(self, message: str) -> str:
         """
-        Wraps Chain.run() and logs results.
-
-        ConversationChain.memory needs to be a ConversationBufferMemory object
+        Send a message to the chat bot.
+        Logs results and manages memory for the agent.
         """
-        response = self.chain.run(input=message)
+        self.memory.add_human_message(message)
+
+        response = self.llm.chat(self.memory.buffer_as_str)
+        self.memory.add_assistant_message(response.output)
+
+        print(f"{self.role} send_chat_message")
+        echo(self.memory.buffer_as_str)
+        echo("\n\n")
 
         log = ChatLogs(
             run_id=self.run.id,
@@ -268,14 +271,13 @@ class Agent:
             role=self.role.name,
             card=self.card,
             llm=self.llm.to_json(),
-            response=response,
+            response=response.output,
             context=self.memory.buffer_as_str,
         )
         self.session.add(log)
         self.session.commit()
 
         echo(log)
-        return str(response)
-
+        return str(response.output)
 
 Base.metadata.create_all(postgres_engine)

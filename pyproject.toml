@@ -11,12 +11,15 @@ click = "^8.1.7"
 python-dotenv = "^1.0.0"
 sqlalchemy = "^2.0.20"
 psycopg2 = "^2.9.7"
-langchain = "^0.0.293"
+langchain = "^0.0.330"
 openai = "^0.28.0"
 flake8 = "^6.1.0"
 black = "^23.9.1"
 flake8-black = "^0.3.6"
 wrapt-timeout-decorator = "^1.4.0"
+together = "^0.2.6"
+ratelimit = "^2.2.1"
+backoff = "^2.2.1"
 
 [tool.black]
 line-length = 88

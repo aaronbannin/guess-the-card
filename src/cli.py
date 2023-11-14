@@ -1,11 +1,10 @@
 from time import sleep
 
 import click
-from langchain.memory import ConversationBufferMemory
-from langchain.chat_models import ChatOpenAI
 from sqlalchemy.orm.session import Session
 
 import models
+from models import TogetherAI, LLAMAMemory, JudgeMemory
 from prompts import GamePrompt, InitialGuesserPrompt, InitialJudgePrompt
 
 
@@ -57,39 +56,32 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
     with Session(models.postgres_engine) as session:
         click.echo(f"initial_judge_prompt {initial_judge_prompt.formatted_string}")
 
-        def get_llm(model: models.OpenAIModels):
-            return ChatOpenAI(
-                max_tokens=256,
-                model=model.value,
-                n=1,
-                temperature=0.8,
-                model_kwargs={
-                    "frequency_penalty": 0,
-                    "presence_penalty": 0,
-                },
-            )
+        agent_kwargs = {
+            "run": run,
+            "card": card,
+            "session": session
+        }
 
-        judge_memory = models.JudgeMemory()
-        judge_memory.set_context(initial_judge_prompt.formatted_string)
+        judge_memory = JudgeMemory(models.Role.judge.value)
+        judge_memory.add_inital_message(initial_judge_prompt.formatted_string)
+
+
         judge = models.Agent(
-            run=run,
             role=models.Role.judge,
-            card=card,
-            llm=get_llm(models.OpenAIModels.gpt3_5_turbo),
-            session=session,
+            # llm=models.LLMFactory(models.OpenAIModels.gpt3_5_turbo),
+            # llm=models.LLMFactory.chat(models.TogetherModels.llama2_7b),
+            llm=TogetherAI(),
             memory=judge_memory,
-            verbose=verbose,
+            **agent_kwargs
         )
 
-        guessor_memory = ConversationBufferMemory()
         guessor = models.Agent(
-            run=run,
             role=models.Role.guesser,
-            card=card,
-            llm=get_llm(models.OpenAIModels.gpt3_5_ft),
-            session=session,
-            memory=guessor_memory,
-            verbose=verbose,
+            # llm=models.LLMFactory(models.OpenAIModels.gpt3_5_ft),
+            # llm=models.LLMFactory.chat(models.TogetherModels.llama2_7b),
+            llm=TogetherAI(),
+            memory=LLAMAMemory(models.Role.guesser.value),
+            **agent_kwargs
         )
 
         iterations_played = 0
@@ -126,6 +118,8 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
 
                     click.echo(ending_condition)
                     break
+
+                sleep(5)
 
         except TimeoutError() as e:
             ending_condition = (
@@ -209,7 +203,7 @@ def label(run_id: click.STRING, new: click.BOOL, all: click.BOOL):
             click.echo(f"Labeling run_id {row[0]}")
             models.RunLabel.from_run_id(session, row[0])
             # crude rate limiting
-            sleep(5)
+            sleep(15)
 
         return f"{len(results)} runs labeled"
 

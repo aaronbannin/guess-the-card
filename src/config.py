@@ -11,3 +11,4 @@ class Config:
     POSTGRES_HOST = getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT = getenv("POSTGRES_PORT", 5432)
     POSTGRES_USER = getenv("POSTGRES_USER")
+    TOGETHER_API_KEY = getenv("TOGETHER_API_KEY", "")

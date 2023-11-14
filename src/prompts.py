@@ -74,6 +74,8 @@ class InitialGuesserPrompt(PromptTreatment):
         On each turn, explain your logic.
     """
 
+    simple = teaching_judge
+
 class InitialJudgePrompt(PromptTreatment):
     default = """
         {game_prompt}
@@ -102,3 +104,5 @@ class InitialJudgePrompt(PromptTreatment):
 
         The card you picked from the deck is {card}
     """
+
+    simple = "Let's play a game"
