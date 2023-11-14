@@ -1,8 +1,10 @@
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
+import together
+from backoff import on_exception, expo
 from config import Config
-# from langchain.llms import Together
+from langchain.llms import Together
 from langchain.llms.together import Together
 from langchain.chat_models import ChatOpenAI
 from langchain.chat_models.base import BaseChatModel
@@ -26,6 +28,50 @@ class OpenAIModels(VendorModels):
 class TogetherModels(VendorModels):
     llama2_7b = "togethercomputer/llama-2-7b"
     llama2_7b_chat = "togethercomputer/llama-2-7b-chat"
+
+# class LLMResponse(BaseModel):
+#     input: str
+#     output: str
+#     raw: dict[str, Any]
+
+# class TogetherAI:
+#     def __init__(self):
+#         together.api_key = Config.TOGETHER_API_KEY
+#         # self.model = "togethercomputer/RedPajama-INCITE-7B-Instruct"
+#         self.model = TogetherModels.llama2_7b_chat.value
+
+
+#     @on_exception(expo, RateLimitException, max_tries=8)
+#     @limits(calls=1, period=5)
+#     def chat(self, content: str) -> LLMResponse:
+#         # print("together prompt")
+#         # print(content + "\n\n")
+#         output = together.Complete.create(
+#             # prompt = "<human>: What are Isaac Asimov's Three Laws of Robotics?\n<bot>:",
+#             prompt = content,
+#             # model = "togethercomputer/RedPajama-INCITE-7B-Instruct",
+#             model = self.model,
+#             max_tokens = 256,
+#             temperature = 0.8,
+#             top_k = 60,
+#             top_p = 0.6,
+#             repetition_penalty = 1.1,
+#             stop = ["[INST]", "None", "User:"]
+#             # stop = ['<human>', '\n\n']
+#         )
+
+#         # return output['prompt'][0]+output['output']['choices'][0]['text']
+
+#         response =  LLMResponse(
+#             input=output['prompt'][0],
+#             output=output['output']['choices'][0]['text'],
+#             raw=output
+#         )
+
+#         return response
+
+#     def to_json(self):
+#         return self.__dict__
 
 class LLMFactory:
     """

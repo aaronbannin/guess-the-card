@@ -4,8 +4,10 @@ from typing import Any
 
 import together
 
+from click import echo
 from pydantic import BaseModel
-from ratelimit import limits
+from ratelimit import limits, RateLimitException
+from backoff import on_exception, expo
 
 from config import Config
 from models.llms import TogetherModels
@@ -35,26 +37,22 @@ class HackedMemory:
     def buffer_as_str(self) -> str:
         return "\n".join([m.as_string for m in self.buffer])
 
-    def add_message(self, message: Message) -> list[Message]:
+    def _add_message(self, message: Message) -> list[Message]:
+        echo(f"adding message [{self.name}] {message.as_string}")
         self.buffer.append(message)
-        # print("message added")
-        # print("new")
-        # print(message.as_string)
-        # print("buffer")
-        # print(self.buffer_as_str)
         return self.buffer
 
     def add_human_message(self, content: str) -> list[Message]:
-        persona =self.personas.human
-        return self.add_message(Message(persona=persona, content=content))
+        persona = self.personas.human
+        return self._add_message(Message(persona=persona, content=content))
 
     def add_assistant_message(self, content: str) -> list[Message]:
-        persona =self.personas.assistant
-        return self.add_message(Message(persona=persona, content=content))
+        persona = self.personas.assistant
+        return self._add_message(Message(persona=persona, content=content))
 
     def add_system_message(self, content: str) -> list[Message]:
-        persona =self.personas.system
-        return self.add_message(Message(persona=persona, content=content))
+        persona = self.personas.system
+        return self._add_message(Message(persona=persona, content=content))
 
     def set_buffer(self, messages: list[Message]) -> list[Message]:
         """Setter for messages. Allows for changing the default behavior of appending each new message."""
@@ -88,6 +86,21 @@ class LLAMAMemory(HackedMemory):
         else:
             return message.content
 
+class JudgeMemory(LLAMAMemory):
+    def add_inital_message(self, content) -> list[Message]:
+        super().add_human_message(content)
+
+    def add_human_message(self, content: str) -> list[Message]:
+        self.set_buffer()
+        return super().add_human_message(content)
+        # return []
+
+    def add_assistant_message(self, content: str) -> list[Message]:
+        # return super().add_assistant_message(content)
+        return []
+
+    def set_buffer(self) -> list[Message]:
+        self.buffer = self.buffer[:1]
 
 class LLMResponse(BaseModel):
     input: str
@@ -102,10 +115,11 @@ class TogetherAI:
         self.model = TogetherModels.llama2_7b_chat.value
 
 
-    # @limits(calls=1, period=30)
+    @on_exception(expo, RateLimitException, max_tries=8)
+    @limits(calls=1, period=5)
     def chat(self, content: str) -> LLMResponse:
-        print("together prompt")
-        print(content + "\n\n")
+        # print("together prompt")
+        # print(content + "\n\n")
         output = together.Complete.create(
             # prompt = "<human>: What are Isaac Asimov's Three Laws of Robotics?\n<bot>:",
             prompt = content,

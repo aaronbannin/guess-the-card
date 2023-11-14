@@ -6,7 +6,7 @@ from langchain.memory import ConversationBufferMemory
 from sqlalchemy.orm.session import Session
 
 import models
-from models.together import HackedMemory, TogetherAI, Message, LLAMAMemory
+from models.together import HackedMemory, TogetherAI, Message, LLAMAMemory, JudgeMemory
 from prompts import GamePrompt, InitialGuesserPrompt, InitialJudgePrompt
 
 
@@ -79,17 +79,17 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
         # judge_memory = models.JudgeMemory()
         # judge_memory.set_context(initial_judge_prompt.formatted_string)
 
-        judge_memory = LLAMAMemory(models.Role.judge.value)
-        judge_memory.add_human_message(initial_judge_prompt.formatted_string)
+        judge_memory = JudgeMemory(models.Role.judge.value)
+        judge_memory.add_inital_message(initial_judge_prompt.formatted_string)
 
 
         judge = models.Agent(
-            # run=run,
+            run=run,
             role=models.Role.judge,
             # card=card,
             # llm=models.LLMFactory(models.OpenAIModels.gpt3_5_turbo),
-            # llm=models.LLMFactory.chat(models.TogetherModels.llama2_7b),
-            llm=TogetherAI(),
+            llm=models.LLMFactory.chat(models.TogetherModels.llama2_7b),
+            # llm=TogetherAI(),
             # session=session,
             memory=judge_memory,
             # verbose=verbose,
@@ -98,7 +98,7 @@ def guess_the_card(max_iterations: click.INT, verbose: click.BOOL, treatment: cl
 
         guessor_memory = ConversationBufferMemory()
         guessor = models.Agent(
-            # run=run,
+            run=run,
             role=models.Role.guesser,
             # card=card,
             # llm=models.LLMFactory(models.OpenAIModels.gpt3_5_ft),

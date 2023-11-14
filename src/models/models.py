@@ -8,9 +8,9 @@ from uuid import uuid1, uuid4
 
 from click import echo
 from langchain.chains import ConversationChain
-from langchain.chat_models.base import BaseChatModel
+# from langchain.chat_models.base import BaseChatModel
 from langchain.memory import ConversationBufferMemory
-from langchain.schema import HumanMessage, SystemMessage
+# from langchain.schema import HumanMessage, SystemMessage
 from langchain.prompts.prompt import PromptTemplate
 from sqlalchemy import create_engine, Column, String, DateTime, Text, JSON
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -43,22 +43,22 @@ AI:
 """
 
 
-# class AgentChain(ConversationChain):
-#     """
-#     Subclassed from ConversationChain for minor customizations
-#     """
+class AgentChain(ConversationChain):
+    """
+    Subclassed from ConversationChain for minor customizations
+    """
 
-#     prompt = PromptTemplate(
-#         input_variables=["history", "input"], template=AGENT_CHAIN_PROMPT_TEMPLATE
-#     )
+    prompt = PromptTemplate(
+        input_variables=["history", "input"], template=AGENT_CHAIN_PROMPT_TEMPLATE
+    )
 
-#     @timeout(10)
-#     def run(self, input: str) -> Any:
-#         """
-#         Call super().run() with a timeout
-#         OpenAI occassionally hangs?
-#         """
-#         return super().run(input=input)
+    @timeout(10)
+    def run(self, input: str) -> Any:
+        """
+        Call super().run() with a timeout
+        OpenAI occassionally hangs?
+        """
+        return super().run(input=input)
 
 
 # class AgentChain(ConversationChain):
@@ -199,38 +199,38 @@ class Run:
         self.started_at = datetime.now()
 
 
-class JudgeMemory(ConversationBufferMemory):
-    ai_prefix: str = "AI"
-    human_prefix: str = "Human"
-    system_prefix: str = "System"
+# class JudgeMemory(ConversationBufferMemory):
+#     ai_prefix: str = "AI"
+#     human_prefix: str = "Human"
+#     system_prefix: str = "System"
 
-    def set_context(self, initial_prompt: str) -> None:
-        """Seed messages for chat"""
-        self.chat_memory.add_message(SystemMessage(content=initial_prompt))
+#     def set_context(self, initial_prompt: str) -> None:
+#         """Seed messages for chat"""
+#         self.chat_memory.add_message(SystemMessage(content=initial_prompt))
 
-    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
-        """Override: Do not add new responses, only carry forward system message."""
-        pass
+#     def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
+#         """Override: Do not add new responses, only carry forward system message."""
+#         pass
 
 
-class GuesserMemory(ConversationBufferMemory):
-    ai_prefix: str = "AI"
-    human_prefix: str = "Human"
-    system_prefix: str = "System"
+# class GuesserMemory(ConversationBufferMemory):
+#     ai_prefix: str = "AI"
+#     human_prefix: str = "Human"
+#     system_prefix: str = "System"
 
-    def set_context(self, rules: str, initial_prompt: str) -> None:
-        """Seed messages for chat"""
-        self.chat_memory.add_message(SystemMessage(content=rules))
-        self.chat_memory.add_message(HumanMessage(content=initial_prompt))
-        # empty message because so we don't lose the rules
-        self.chat_memory.add_message(HumanMessage(content=""))
+#     def set_context(self, rules: str, initial_prompt: str) -> None:
+#         """Seed messages for chat"""
+#         self.chat_memory.add_message(SystemMessage(content=rules))
+#         self.chat_memory.add_message(HumanMessage(content=initial_prompt))
+#         # empty message because so we don't lose the rules
+#         self.chat_memory.add_message(HumanMessage(content=""))
 
-    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
-        """Override: Only add most recent response"""
-        _, output_str = self._get_input_output(inputs, outputs)
-        # remove last message
-        self.chat_memory.messages.pop()
-        self.chat_memory.add_ai_message(output_str)
+#     def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, str]) -> None:
+#         """Override: Only add most recent response"""
+#         _, output_str = self._get_input_output(inputs, outputs)
+#         # remove last message
+#         self.chat_memory.messages.pop()
+#         self.chat_memory.add_ai_message(output_str)
 
 from models.together import TogetherAI, HackedMemory
 
@@ -242,36 +242,28 @@ class Agent:
         card: String,
         llm: TogetherAI,
         session: Session,
-        verbose=False,
-        # memory: ConversationBufferMemory = None,
         memory: HackedMemory = None,
     ) -> None:
         self.run = run
         self.role = role
         self.card = card
         self.llm = llm
-        # self.memory = memory if memory is not None else ConversationBufferMemory()
         self.memory = memory if memory is not None else HackedMemory(role.value)
-        # self.chain = AgentChain(llm=llm, memory=self.memory, verbose=verbose)
         self.session = session
 
     def send_chat_message(self, message: str) -> str:
         """
-        Wraps Chain.run() and logs results.
-
-        ConversationChain.memory needs to be a ConversationBufferMemory object
+        Send a message to the chat bot.
+        Logs results and manages memory for the agent.
         """
-        print(f"{self.role} send_chat_message")
-        echo(self.memory.buffer_as_str)
-        echo("\n\n")
-        # response = self.chain.run(input=message)
         self.memory.add_human_message(message)
-        # echo(message)
 
         response = self.llm.chat(self.memory.buffer_as_str)
         self.memory.add_assistant_message(response.output)
-        # echo(response.output)
 
+        print(f"{self.role} send_chat_message")
+        echo(self.memory.buffer_as_str)
+        echo("\n\n")
 
         log = ChatLogs(
             run_id=self.run.id,
